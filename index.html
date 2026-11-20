@@ -95,6 +95,8 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
         <div class="ends"><b>Puro</b><i>Degenerado</i></div>
         <input type="range" id="deg" min="0" max="100" value="0">
         <div class="val" id="dval"></div>
+        <label style="margin-top:8px">Opacidade do sangue: <span id="bloodOpV"></span></label>
+        <input type="range" id="bloodOp" min="0" max="100" value="100">
       </div>
       <div class="btns" style="margin-top:8px">
         <button data-preset="velino">Velino</button>
@@ -107,17 +109,24 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
 
     <div class="grp">
       <h2>Leitura</h2>
-      <label>Teto de contraste na mancha de texto: <span id="capInV"></span></label>
-      <input type="range" id="capIn" min="2" max="40" value="12">
-      <label>Teto de contraste nas margens: <span id="capOutV"></span></label>
+      <label>Teto de contraste: <span id="capOutV"></span></label>
       <input type="range" id="capOut" min="5" max="100" value="32">
-      <label>Proteção da mancha de texto: <span id="protectV"></span></label>
+      <p class="note" style="margin-top:2px">Quanto o papel pode se afastar da cor base nas margens.</p>
+      <label>Na mancha de texto: <span id="inRatioV"></span> do teto</label>
+      <input type="range" id="inRatio" min="0" max="100" value="38">
+      <label>Manchas evitam o texto: <span id="protectV"></span></label>
       <input type="range" id="protect" min="0" max="100" value="80">
+      <div class="seg" id="zoneMode" style="margin-top:8px">
+        <button data-z="liso">Texto liso</button>
+        <button data-z="suave">Suave</button>
+        <button data-z="igual">Sem proteção</button>
+      </div>
+      <p class="note" id="zoneState"></p>
       <div id="meter">medindo…</div>
       <label class="chk"><input type="checkbox" id="sim"> Simular impressão (papel escurece)</label>
       <label class="chk"><input type="checkbox" id="showText" checked> Texto de teste por cima</label>
       <label class="chk"><input type="checkbox" id="guides" checked> Guias (mancha de texto e corte)</label>
-      <p class="note">O teto limita quanto o papel pode se afastar da cor base. Dentro da mancha de texto, ΔL* até ~10 costuma passar despercebido na leitura.</p>
+      <p class="note">Dentro da mancha de texto, ΔL* até ~10 costuma passar despercebido na leitura.</p>
     </div>
 
     <div class="grp">
@@ -177,7 +186,7 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       <input type="range" id="stain" min="0" max="200" value="100">
       <label>Vidro quebrado: <span id="glassV"></span></label>
       <input type="range" id="glass" min="0" max="100" value="0">
-      <p class="note">Quanto mais alto, mais níveis de quebra (cacos menores). Segue o eixo Ordem ↔ Caos: na ordem os cortes são geométricos; no caos, tortos e irregulares.</p>
+      <p class="note">Quanto mais alto, menores e mais numerosos os cacos. Segue o eixo Ordem ↔ Caos: na ordem os cortes são geométricos; no caos, tortos e irregulares.</p>
     </div>
 
     <div class="grp">
@@ -388,12 +397,12 @@ function buildScene(S,ST){
   /* vidro quebrado: fractal de cacos — cada caco se divide em dois, recursivamente.
      Na ordem os cortes são geométricos (perpendiculares à maior aresta, diagonais alternadas);
      no caos o ângulo, o ponto de corte e a profundidade de cada ramo ficam irregulares. */
-  if(S.glass>0){const maxD=1+Math.round(S.glass*6),segs=[];
+  if(S.glass>0){const target=4000*Math.pow(40/4000,S.glass),segs=[];
     const area=p=>{let a=0;for(let i=0;i<p.length;i++){const [x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];a+=x1*y2-x2*y1;}return Math.abs(a)/2;};
     const split=(poly,depth,path)=>{
       const q=RNG(sd,'vidro'+path),u=q(),v=q(),an=q(),keep=q(),bow=q(),bev=q(),bo=q();
-      if(depth>=maxD||area(poly)<6)return;
-      if(depth>0&&keep<c*.5*(.3+depth/maxD))return; // no caos, alguns ramos param antes
+      // divide até o caco ficar do tamanho-alvo; no caos, o alvo de cada ramo varia (cacos grandes ao lado de lascas)
+      const ar=area(poly);if(depth>=16||ar<target*(c>0?Math.pow(6,(keep-.5)*2*c):1))return;
       let cx=0,cy=0;poly.forEach(([x,y])=>{cx+=x;cy+=y;});cx/=poly.length;cy/=poly.length;
       let L=0,ea=0;for(let i=0;i<poly.length;i++){const p1=poly[i],p2=poly[(i+1)%poly.length],l=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]);if(l>L){L=l;ea=Math.atan2(p2[1]-p1[1],p2[0]-p1[0]);}}
       const ord=ea+Math.PI/2+(depth%3===1?Math.PI/4:0);
@@ -413,14 +422,14 @@ function buildScene(S,ST){
     segs.forEach((sg,si)=>{const [ax,ay]=sg.a,[bx,by]=sg.b,dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy);if(len<.5)return;
       const px=-dy/len,py=dx/len,n=Math.max(2,Math.ceil(len/2.5)),bw=(sg.bow-.5)*len*.05*c,kt=.25+sg.bo*.5,kj=(sg.bev-.5)*len*.03*c;
       const pts=[];for(let k=0;k<=n;k++){const t=k/n,j=(k===0||k===n)?0:(nz(t*len*.15+si*3.1,si)*.25*c+Math.sin(Math.PI*t)*bw+(t<kt?t/kt:(1-t)/(1-kt))*kj);pts.push([ax+dx*t+px*j,ay+dy*t+py*j]);}
-      const wk=Math.max(.45,1.25-sg.depth*.13);
+      const wk=Math.max(.5,1.3-sg.depth*.07);
       add({v:0,ch:1,k:'l',p:pts,w:1*wk,a:.08});
       add({v:0,ch:1,k:'l',p:pts,w:.2*wk,a:.85});
       add({v:0,ch:2,k:'l',p:pts.map(([x,y])=>[x+px*.3,y+py*.3]),w:.22*wk,a:.7});
       if(sg.bev<.35){const off=-(.6+sg.bo*1.4),t0=.05+sg.bo*.3,t1=.6+sg.bev*1.1;
         const bp=pts.filter((_,k)=>k/n>=t0&&k/n<=t1).map(([x,y])=>[x+px*off,y+py*off]);
         if(bp.length>1){add({v:0,ch:2,k:'l',p:bp,w:.16,a:.55});add({v:0,ch:1,k:'l',p:bp.map(([x,y])=>[x+px*.25,y+py*.25]),w:.12,a:.4});}}
-      const nch=Math.round(len/5*(.3+c));
+      const nch=Math.round(len/7*(.3+c));
       for(let k=0;k<nch;k++){const t=rc(),sdn=rc()<.5?-1:1,sz=.25+Math.pow(rc(),2)*1.4,an=rc()*TAU,kind=rc();
         const x=ax+dx*t+px*sdn*(.2+sz*.4),y=ay+dy*t+py*sdn*(.2+sz*.4);
         if(kind<.55)add({v:0,ch:2,k:'f',p:[[x,y],[x+Math.cos(an)*sz,y+Math.sin(an)*sz],[x+Math.cos(an+1.9)*sz*.6,y+Math.sin(an+1.9)*sz*.6]],a:.55});
@@ -534,7 +543,7 @@ function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
   const dark=relLum(base)<.2;
   const hl=mixc(base,[255,255,255],dark?.22:.45);
   const charc=dark?[0,0,0]:mixc(tint,[0,0,0],.5);
-  const capIn=S.capIn,capOut=S.capOut,gr0=S.grain*.32;
+  const capOut=S.capOut,capIn=S.capOut*S.inRatio,gr0=S.grain*.32,bop=S.bloodOp;
   // colunas
   const xs=new Float32Array(rw),gi=new Int32Array(rw),gf=new Float32Array(rw),zdx=new Float32Array(rw),zr=new Uint8Array(rw);
   for(let i=0;i<rw;i++){const x=(rx0+i+.5)/ppm-g.b;xs[i]=x;let f=(x+g.b)/ST,k=Math.floor(f);if(k<0)k=0;if(k>gw-2)k=gw-2;gi[i]=k;gf[i]=clamp(f-k,0,1);
@@ -554,7 +563,7 @@ function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
       const dP=(P>0?P:0)+A[o]/255*1.1+(gr>0?gr:0);
       const lt=(P<0?-P:0)+A[o+2]/255*1.1+(gr<0?-gr:0);
       const dS=Sv+A[o+1]/255*1.3;
-      const bl=B[o]/255*1.7,ch=C+B[o+1]/255*1.6;
+      const bl=B[o]/255*1.7*bop,ch=C+B[o+1]/255*1.6;
       let mo=0;if(M>.005){const sp=nSpeck(x*2.8,y*2.8)*.5+.5;mo=M*(.25+1.6*sst(.45,.8,sp+M*.25));}
       const T=dP+dS+bl+ch+mo;
       const dd=Math.hypot(zdx[i],zdy);const z=dd<=0?1:dd>=fe?0:1-sst(0,fe,dd);
@@ -603,7 +612,7 @@ const PALS={
   carvao:{base:'#171513',tint:'#CFC4AE',blood:'#9E1616',mold:'#6F7D5A',text:'#E8E1D2'}
 };
 const DEF={seed:'emunah',chaos:.25,deg:0,layout:'dupla',size:'210x297',pw:210,ph:297,bleed:3,
-  mTop:22,mBot:28,mIn:20,mOut:24,feather:8,capIn:.12,capOut:.32,protect:.8,
+  mTop:22,mBot:28,mIn:20,mOut:24,feather:8,inRatio:.38,capOut:.32,protect:.8,bloodOp:1,
   grain:.5,fibers:.5,stain:1,glass:0,base:'#E9E2D0',tint:'#3A2E1C',blood:'#8E0E12',mold:'#4C5A3C',text:'#071A18',
   font:'EB Garamond',fontCustom:'',fsize:10,lead:1.35,cols:1,showText:true,guides:true,sim:false,showFrame:true,
   dpi:300,transp:false,split:false,entropia:''};
@@ -624,11 +633,11 @@ const TEXTO=`<h3>I. Das vozes sob a pedra</h3>
 const TEXTO2=TEXTO.replace(/<h3>.*?<\/h3>/,'').replace(' class="first"','');
 
 let S=Object.assign({},DEF);
-try{const h=location.hash.slice(1);if(h){const o=JSON.parse(decodeURIComponent(escape(atob(h))));S=Object.assign({},DEF,o);}}catch(e){}
+try{const h=location.hash.slice(1);if(h){const o=JSON.parse(decodeURIComponent(escape(atob(h))));if(o.capIn!==undefined&&o.inRatio===undefined)o.inRatio=clamp(o.capIn/(o.capOut||.32),0,1);delete o.capIn;S=Object.assign({},DEF,o);}}catch(e){}
 
 const $=id=>document.getElementById(id);
 const bindings=[
-  ['capIn','pct'],['capOut','pct'],['protect','pct'],['sim','chk'],['showText','chk'],['guides','chk'],
+  ['capOut','pct'],['inRatio','pct'],['protect','pct'],['bloodOp','pct'],['sim','chk'],['showText','chk'],['guides','chk'],
   ['seed','text'],['bleed','int'],['mTop','int'],['mBot','int'],['mIn','int'],['mOut','int'],['feather','int'],
   ['grain','pct'],['fibers','pct'],['stain','pct'],['glass','pct'],['base','col'],['tint','col'],['blood','col'],['mold','col'],['text','col'],
   ['font','sel'],['fontCustom','text'],['fsize','num'],['lead','pct'],['cols','int'],['showFrame','chk'],
@@ -645,7 +654,12 @@ function toUI(){
 }
 function labels(){
   $('cval').textContent='entropia '+S.chaos.toFixed(2);$('dval').textContent='degeneração '+S.deg.toFixed(2);
-  $('capInV').textContent=Math.round(S.capIn*100)+'%';$('capOutV').textContent=Math.round(S.capOut*100)+'%';$('protectV').textContent=Math.round(S.protect*100)+'%';
+  $('capOutV').textContent=Math.round(S.capOut*100)+'%';$('inRatioV').textContent=Math.round(S.inRatio*100)+'%';$('protectV').textContent=Math.round(S.protect*100)+'%';$('bloodOpV').textContent=Math.round(S.bloodOp*100)+'%';
+  const zm=S.inRatio<=0?'liso':(S.inRatio>=1&&S.protect<=0)?'igual':(Math.abs(S.inRatio-.38)<.01&&Math.abs(S.protect-.8)<.01)?'suave':'';
+  [...$('zoneMode').children].forEach(b=>b.classList.toggle('on',b.dataset.z===zm));
+  $('zoneState').textContent=S.inRatio<=0?'Texto liso: na mancha de texto fica só a cor do papel, sem grão, manchas ou vidro. A transição para as margens segue o controle de Transição, em Página.'
+    :(S.inRatio>=1&&S.protect<=0)?'Sem proteção: a mancha de texto é tratada igual às margens, e as manchas avançam livremente sobre ela.'
+    :`Na mancha de texto o papel varia até ${Math.round(S.inRatio*100)}% do que varia nas margens`+(S.protect>0?`, e ${Math.round(S.protect*100)}% das manchas grandes desviam dela.`:', e as manchas podem cair sobre ela.');
   ['mTop','mBot','mIn','mOut','feather'].forEach(k=>$(k+'V').textContent=S[k]);
   $('grainV').textContent=Math.round(S.grain*100)+'%';$('fibersV').textContent=Math.round(S.fibers*100)+'%';$('stainV').textContent=Math.round(S.stain*100)+'%';$('glassV').textContent=Math.round(S.glass*100)+'%';
   $('fsizeV').textContent=S.fsize;$('leadV').textContent=S.lead.toFixed(2);
@@ -723,6 +737,8 @@ $('size').addEventListener('change',e=>{S.size=e.target.value;if(S.size!=='custo
 ['pw','ph'].forEach(k=>$(k).addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>=50&&v<=600){S[k]=v;render();}}));
 [...$('layout').children].forEach(b=>b.addEventListener('click',()=>{S.layout=b.dataset.v;toUI();render();}));
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{Object.assign(S,PRESETS[b.dataset.preset]);toUI();render();}));
+const ZONES={liso:{inRatio:0},suave:{inRatio:.38,protect:.8},igual:{inRatio:1,protect:0}};
+[...$('zoneMode').children].forEach(b=>b.addEventListener('click',()=>{Object.assign(S,ZONES[b.dataset.z]);toUI();render();}));
 document.querySelectorAll('[data-pal]').forEach(b=>b.addEventListener('click',()=>{Object.assign(S,PALS[b.dataset.pal]);toUI();render();}));
 $('dice').addEventListener('click',()=>{S.seed=WORDS[Math.floor(Math.random()*WORDS.length)]+'-'+Math.floor(Math.random()*999);toUI();render();});
 window.addEventListener('resize',()=>render());

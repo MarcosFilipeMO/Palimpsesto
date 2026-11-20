@@ -175,6 +175,9 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       <input type="range" id="fibers" min="0" max="100" value="50">
       <label>Intensidade das manchas: <span id="stainV"></span></label>
       <input type="range" id="stain" min="0" max="200" value="100">
+      <label>Vidro quebrado: <span id="glassV"></span></label>
+      <input type="range" id="glass" min="0" max="100" value="0">
+      <p class="note">Quanto mais alto, mais impactos e maiores as rachaduras. Troque a semente para mudar onde o vidro quebra.</p>
     </div>
 
     <div class="grp">
@@ -246,7 +249,7 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       <label class="chk"><input type="checkbox" id="split"> Páginas separadas (na dupla)</label>
       <label class="chk"><input type="checkbox" id="transp"> Sem a cor do papel (PNG transparente)</label>
       <button id="share" style="width:100%;margin-top:8px">Copiar link deste papel</button>
-      <p class="note">O PNG sai no tamanho real (com sangria, se houver) e com a resolução gravada no arquivo. Em camadas: papel, manchas e degenerado. Rasgos e queimaduras viram transparência.</p>
+      <p class="note">O PNG sai no tamanho real (com sangria, se houver) e com a resolução gravada no arquivo. Em camadas: papel, manchas e degenerado. Rasgos viram transparência.</p>
     </div>
   </aside>
 </main>
@@ -333,8 +336,24 @@ function buildScene(S,ST){
 
   /* manchas de umidade (campo) */
   const tides=[];
-  {const r=RNG(sd,'umidade');for(let i=0;i<10;i++){const th=r(),sk=r(),[x,y]=edgePt(r,Math.min(g.pw,g.ph)*.35),R=10+Math.pow(r(),1.3)*48,ns=r()*1000,amt=.6+r()*.6,ring2=r();
-    if(th>=(c-.28)*1.5*st)continue;if(skip(x,y,sk))continue;tides.push({x,y,R,ns,amt:amt*Math.min(1.6,st),ring2});}}
+  {const r=RNG(sd,'umidade');for(let i=0;i<14;i++){
+    const th=r(),sk=r(),[x,y]=edgePt(r,Math.min(g.pw,g.ph)*.35),R0=r(),ns=r()*1000,amt=.5+r()*.7,kind=r(),rot=r()*Math.PI,asp=r(),nl=r(),
+      rimW=.012+r()*.05,fill=r(),ring2=r(),gapS=r()*TAU,gapL=r(),nAmp=r(),nFreq=r(),sideA=r()*TAU,sideAmt=r();
+    const lr=[];for(let k=0;k<6;k++)lr.push([r(),r(),r()]);
+    if(th>=(c-.2)*1.6*st)continue;if(skip(x,y,sk))continue;
+    let R=8+Math.pow(R0,1.4)*50;const lobes=[];let ring=false,type;
+    if(kind<.2){type='redonda';lobes.push({x,y,rx:R,ry:R,rot:0});}
+    else if(kind<.4){type='alongada';lobes.push({x,y,rx:R,ry:R*(.25+asp*.45),rot});}
+    else if(kind<.6){type='poca';const n=2+Math.floor(nl*4);lobes.push({x,y,rx:R*.6,ry:R*.6*(.7+asp*.3),rot});
+      for(let k=0;k<n;k++){const [a,b,cc]=lr[k];const an=a*TAU,dd=R*(.3+b*.55),rr=R*(.25+cc*.4);lobes.push({x:x+Math.cos(an)*dd,y:y+Math.sin(an)*dd,rx:rr,ry:rr*(.6+cc*.4),rot:a*Math.PI});}}
+    else if(kind<.8){type='escorrida';const dir=Math.PI/2+(rot-Math.PI/2)*.35;const n=3+Math.floor(nl*3);let px=x,py=y,rr=R*.5;
+      lobes.push({x,y,rx:rr,ry:rr*(.7+asp*.3),rot});
+      for(let k=0;k<n;k++){const [a,b]=lr[k];px+=Math.cos(dir+(a-.5)*.5)*rr*1.1;py+=Math.sin(dir+(a-.5)*.5)*rr*1.1;rr*=.55+b*.3;lobes.push({x:px,y:py,rx:rr*.8,ry:rr*1.3,rot:dir});}}
+    else{type='anel';ring=true;R=12+R0*22;lobes.push({x,y,rx:R,ry:R,rot:0});
+      if(nl<.45){const [a]=lr[0];lobes.push({x:x+Math.cos(a*TAU)*R*.22,y:y+Math.sin(a*TAU)*R*.22,rx:R*(.95+asp*.1),ry:R*(.95+asp*.1),rot:0});}}
+    let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9;lobes.forEach(l=>{const m=Math.max(l.rx,l.ry)*1.5;bx0=Math.min(bx0,l.x-m);bx1=Math.max(bx1,l.x+m);by0=Math.min(by0,l.y-m);by1=Math.max(by1,l.y+m);});
+    tides.push({type,ring,lobes,x,y,R,ns,amt:amt*Math.min(1.6,st),ring2,rimW:ring?.012+rimW*.3:rimW,fill:ring?0:.15+.85*fill,
+      gapS,gapH:.25+gapL*1.3,na:ring?.03+nAmp*.07:.06+nAmp*.4,nsc:R/(1+nFreq*4),sdx:Math.cos(sideA),sdy:Math.sin(sideA),sideAmt,bb:[bx0,bx1,by0,by1]});}}
 
   /* dobras */
   {const r=RNG(sd,'dobras');for(let i=0;i<4;i++){const th=r(),type=r(),p1=r(),p2=r(),p3=r(),ns=r()*999,side=r()<.5?1:-1;
@@ -365,6 +384,34 @@ function buildScene(S,ST){
         const u=Math.cos(t)*a*s*wob,v=Math.sin(t)*b*s*wob-b*.18*(1-s);
         cur.push([x+u*co-v*si,y+u*si+v*co]);}
       flush();}}}
+
+  /* vidro quebrado: raios a partir do impacto + anéis em teia + cacos com tons */
+  if(S.glass>0){const r=RNG(sd,'vidro');const nImp=1+Math.floor(S.glass*3.99);
+    const crack=(p,k)=>{if(p.length<2)return;
+      add({v:0,ch:1,k:'l',p,w:1.1*k,a:.1});
+      add({v:0,ch:1,k:'l',p,w:.16+.16*k,a:1});
+      add({v:0,ch:2,k:'l',p:p.map(([x,y])=>[x-.32,y-.32]),w:.22,a:.6});};
+    for(let im=0;im<4;im++){const ux=r(),uy=r(),rs=r(),nr=r(),rot0=r()*TAU;const q=RNG(sd,'vidro'+im);
+      if(im>=nImp)continue;
+      const cx=g.TW*(.08+ux*.84),cy=g.TH*(.08+uy*.84),R=(35+rs*45)*(.6+S.glass*1.6),n=8+Math.floor(nr*9),step=2;
+      const rads=[];
+      for(let k=0;k<n;k++){let ang=rot0+k/n*TAU+(q()-.5)*TAU/n*.7;const L=R*(.45+q()*.65);
+        const pts=[[cx,cy]];let px=cx,py=cy;for(let s=step;s<=L;s+=step){ang+=(q()-.5)*.12;px+=Math.cos(ang)*step;py+=Math.sin(ang)*step;pts.push([px,py]);}
+        rads.push({L,pts});crack(pts,1);
+        if(q()<.45&&pts.length>8){const fi=Math.floor(pts.length*(.4+q()*.4));let fa=ang+(q()<.5?-1:1)*(.25+q()*.4);let [fx,fy]=pts[fi];const fp=[[fx,fy]];const FL=L*(.15+q()*.3);
+          for(let s=step;s<=FL;s+=step){fa+=(q()-.5)*.15;fx+=Math.cos(fa)*step;fy+=Math.sin(fa)*step;fp.push([fx,fy]);}crack(fp,.7);}}
+      const at=(rad,d)=>rad.pts[Math.min(rad.pts.length-1,Math.max(0,Math.round(d/step)))];
+      const rings=[];let r0=R*(.06+q()*.04);while(r0<R*.85){rings.push(r0);r0*=1.4+q()*.5;}
+      for(let k=0;k<n;k++){const A=rads[k],B=rads[(k+1)%n];let prev=null;
+        for(let j=0;j<rings.length;j++){const rj=rings[j]*(.85+q()*.3),has=q(),bow=q(),shade=q(),lit=q();
+          if(rj>A.L*.95||rj>B.L*.95)break;
+          if(has>1-j/rings.length*.55)continue;
+          const P=at(A,rj),Q=at(B,rj),mx=(P[0]+Q[0])/2,my=(P[1]+Q[1])/2,dx=mx-cx,dy=my-cy,dl=Math.hypot(dx,dy)||1,b=(bow-.3)*rj*.08;
+          const seg=[P,[mx+dx/dl*b,my+dy/dl*b],Q];crack(seg,.6);
+          if(prev){const poly=[at(A,prev),P,seg[1],Q,at(B,prev)];add({v:0,ch:lit<.4?2:0,k:'f',p:poly,a:shade*.14});}
+          prev=rj;}}
+      const cr=RNG(sd,'esmigalhado'+im);for(let k=0;k<26;k++){const a=cr()*TAU,d=cr()*R*.07,l=.6+cr()*2.5,b=cr()*TAU;
+        const x0=cx+Math.cos(a)*d,y0=cy+Math.sin(a)*d;crack([[x0,y0],[x0+Math.cos(b)*l,y0+Math.sin(b)*l]],.5);}}}
 
   /* ---- DEGENERADO ---- */
   /* respingos de sangue */
@@ -421,29 +468,42 @@ function buildScene(S,ST){
   /* ---- campos de baixa frequência (grade de ST mm) ---- */
   const gw=Math.ceil(g.W/ST)+2,gh=Math.ceil(g.H/ST)+2,N=gw*gh;
   const cP=new Float32Array(N),cS=new Float32Array(N),cC=new Float32Array(N),cM=new Float32Array(N),cH=new Float32Array(N);
-  const nM=vnoise(RNG(sd,'mancha')),nE=vnoise(RNG(sd,'borda')),nT=vnoise(RNG(sd,'agua')),nO=vnoise(RNG(sd,'mofo-n')),nB=vnoise(RNG(sd,'fogo'));
-  const amp=.16+c*.6;
-  const gb=g01(dg,.5,1),depth=1.5+gb*15,gH=g01(dg,.78,1);
+  const nM=vnoise(RNG(sd,'mancha')),nE=vnoise(RNG(sd,'borda')),nT=vnoise(RNG(sd,'agua')),nO=vnoise(RNG(sd,'mofo-n'));
+  const amp=.12+c*.42;
+  // fundo varia por semente: escala, direção, distorção e estilo (nuvens, veios ou manchas soltas)
+  const mr=RNG(sd,'fundo'),nW=vnoise(RNG(sd,'warp'));
+  const msc=22+mr()*50,mstr=.5+mr()*1.1,mang=mr()*Math.PI,mwarp=mr()*1.3,mstyle=mr(),mco=Math.cos(mang),msi=Math.sin(mang);
   const wearA=(.1+c*1.1)*st,wearF=1.5+c*9;
   for(let j=0;j<gh;j++){const y=-g.b+j*ST;
     for(let i=0;i<gw;i++){const x=-g.b+i*ST,id=j*gw+i;
-      cP[id]=amp*(fbm(nM,x/40,y/40,4)*1.5+.45*fbm(nM,x/9+50,y/9,3)*1.5);
+      {const wx=x+mwarp*18*nW(x/35,y/35),wy=y+mwarp*18*nW(x/35+40,y/35);const u=(wx*mco+wy*msi)*mstr,v=-wx*msi+wy*mco;
+        let b=fbm(nM,u/msc,v/msc,4)*1.5;
+        if(mstyle<.33){}                                   // nuvens
+        else if(mstyle<.66)b=(.55-Math.abs(b))*1.6;        // veios
+        else b=sst(.05,.35,b)*1.4-.35;                     // manchas soltas, de borda definida
+        cP[id]=amp*(b+.45*fbm(nM,x/9+50,y/9,3)*1.5);}
       const e=Math.max(0,edgeDist(g,x,y));
       let Sv=wearA*Math.exp(-e/wearF)*(.55+.45*nE(x/7,y/7));
-      for(const t of tides){const dx=x-t.x,dy=y-t.y;if(dx>t.R*1.5||dx<-t.R*1.5||dy>t.R*1.5||dy<-t.R*1.5)continue;
-        const d=Math.hypot(dx,dy),a=Math.atan2(dy,dx),ca=Math.cos(a),sa=Math.sin(a);
-        const Rb=t.R*(1+.25*nT(ca*1.4+t.ns,sa*1.4+t.ns)+.07*nT(ca*5+t.ns,sa*5-t.ns));const q=d/Rb;
-        if(q<1)Sv+=t.amt*.16*(.7+.5*nT(x/5+t.ns,y/5));
-        const q1=(q-1)/.025;Sv+=t.amt*.9*Math.exp(-q1*q1);
-        if(t.ring2<.6){const q2=(q-.8)/.02;Sv+=t.amt*.45*Math.exp(-q2*q2);}}
+      for(const t of tides){if(x<t.bb[0]||x>t.bb[1]||y<t.bb[2]||y>t.bb[3])continue;
+        const nb=1+t.na*nT(x/t.nsc+t.ns,y/t.nsc-t.ns)+t.na*.3*nT(x/(t.nsc*.3)-t.ns,y/(t.nsc*.3));
+        if(t.ring){ // anel de copo: só a borda, com falha e espessura irregular
+          for(const l of t.lobes){const dx=x-l.x,dy=y-l.y;const q=Math.hypot(dx,dy)/(l.rx*nb);if(q<.85||q>1.15)continue;
+            const a=Math.atan2(dy,dx);let ad=Math.abs(a-t.gapS)%TAU;if(ad>Math.PI)ad=TAU-ad;
+            const gf=sst(t.gapH*.5,t.gapH,ad)*(.55+.45*nT(Math.cos(a)*2+t.ns,Math.sin(a)*2));
+            const q1=(q-1)/t.rimW;Sv+=t.amt*1.1*gf*Math.exp(-q1*q1);}
+          continue;}
+        let q=1e9;for(const l of t.lobes){const dx=x-l.x,dy=y-l.y,co=Math.cos(l.rot),si=Math.sin(l.rot);
+          const u=(dx*co+dy*si)/l.rx,v=(-dx*si+dy*co)/l.ry;const qq=Math.sqrt(u*u+v*v);if(qq<q)q=qq;}
+        q/=nb;if(q>1.25)continue;
+        const side=1+t.sideAmt*.9*clamp(((x-t.x)*t.sdx+(y-t.y)*t.sdy)/t.R,-1,1);
+        if(q<1)Sv+=t.amt*.3*t.fill*side*(.7+.5*nT(x/5+t.ns,y/5));
+        const q1=(q-1)/t.rimW;Sv+=t.amt*.9*Math.max(.25,side)*Math.exp(-q1*q1);
+        if(t.ring2<.45){const q2=(q-.8)/(t.rimW*.8);Sv+=t.amt*.4*Math.exp(-q2*q2);}}
       cS[id]=Sv;
       let M=0;for(const m of molds){const dx=x-m.x,dy=y-m.y;if(dx>m.R*1.6||dx<-m.R*1.6||dy>m.R*1.6||dy<-m.R*1.6)continue;
         const a=Math.atan2(dy,dx);const q=Math.hypot(dx,dy)/(m.R*(1+.4*nO(Math.cos(a)*1.6+m.ns,Math.sin(a)*1.6+m.ns)));
         if(q<1.3)M+=(1-sst(.15,1.15,q))*(.55+.45*nO(x/2.5+m.ns,y/2.5));}
       cM[id]=M;
-      if(gb>0){const f=e-depth*(.3+.9*(nB(x/20,y/20)*.5+.5))-2*gb*nB(x/4+9,y/4);
-        cC[id]=f<0?2.4:1.8*Math.exp(-f/(1+gb*3.5));
-        if(gH>0)cH[id]=clamp(.5+(-f-1.5-(1-gH)*depth)/1.2,0,1);}
     }}
   // caixas para descartar primitivas fora da faixa renderizada
   prims.forEach(p=>{if(p.k==='r'){p.y0=p.y-p.r;p.y1=p.y+p.r;p.x0=p.x-p.r;p.x1=p.x+p.r;return;}
@@ -511,7 +571,7 @@ function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
       let mo=0;if(M>.005){const sp=nSpeck(x*2.8,y*2.8)*.5+.5;mo=M*(.25+1.6*sst(.45,.8,sp+M*.25));}
       const T=dP+dS+bl+ch+mo;
       const dd=Math.hypot(zdx[i],zdy);const z=dd<=0?1:dd>=fe?0:1-sst(0,fe,dd);
-      let cap=capOut+(capIn-capOut)*z;if(C>1.2)cap+=(1-cap)*sst(1.2,2.4,C)*(1-z); // a queimadura pode ir até o carvão fora da mancha
+      const cap=capOut+(capIn-capOut)*z;
       const t=T>0?cap*Math.tanh(T):0,tl=cap*.45*Math.tanh(lt);
       let alpha=255-B[o+2];if(Hc>.4)alpha*=1-sst(.4,.6,Hc);
       const r0=base[0]+(hl[0]-base[0])*tl,g0=base[1]+(hl[1]-base[1])*tl,b0=base[2]+(hl[2]-base[2])*tl;
@@ -557,7 +617,7 @@ const PALS={
 };
 const DEF={seed:'emunah',chaos:.25,deg:0,layout:'dupla',size:'210x297',pw:210,ph:297,bleed:3,
   mTop:22,mBot:28,mIn:20,mOut:24,feather:8,capIn:.12,capOut:.32,protect:.8,
-  grain:.5,fibers:.5,stain:1,base:'#E9E2D0',tint:'#3A2E1C',blood:'#8E0E12',mold:'#4C5A3C',text:'#071A18',
+  grain:.5,fibers:.5,stain:1,glass:0,base:'#E9E2D0',tint:'#3A2E1C',blood:'#8E0E12',mold:'#4C5A3C',text:'#071A18',
   font:'EB Garamond',fontCustom:'',fsize:10,lead:1.35,cols:1,showText:true,guides:true,sim:false,showFrame:true,
   dpi:300,transp:false,split:false,entropia:''};
 const PRESETS={
@@ -583,7 +643,7 @@ const $=id=>document.getElementById(id);
 const bindings=[
   ['capIn','pct'],['capOut','pct'],['protect','pct'],['sim','chk'],['showText','chk'],['guides','chk'],
   ['seed','text'],['bleed','int'],['mTop','int'],['mBot','int'],['mIn','int'],['mOut','int'],['feather','int'],
-  ['grain','pct'],['fibers','pct'],['stain','pct'],['base','col'],['tint','col'],['blood','col'],['mold','col'],['text','col'],
+  ['grain','pct'],['fibers','pct'],['stain','pct'],['glass','pct'],['base','col'],['tint','col'],['blood','col'],['mold','col'],['text','col'],
   ['font','sel'],['fontCustom','text'],['fsize','num'],['lead','pct'],['cols','int'],['showFrame','chk'],
   ['dpi','int'],['transp','chk'],['split','chk']
 ];
@@ -600,7 +660,7 @@ function labels(){
   $('cval').textContent='entropia '+S.chaos.toFixed(2);$('dval').textContent='degeneração '+S.deg.toFixed(2);
   $('capInV').textContent=Math.round(S.capIn*100)+'%';$('capOutV').textContent=Math.round(S.capOut*100)+'%';$('protectV').textContent=Math.round(S.protect*100)+'%';
   ['mTop','mBot','mIn','mOut','feather'].forEach(k=>$(k+'V').textContent=S[k]);
-  $('grainV').textContent=Math.round(S.grain*100)+'%';$('fibersV').textContent=Math.round(S.fibers*100)+'%';$('stainV').textContent=Math.round(S.stain*100)+'%';
+  $('grainV').textContent=Math.round(S.grain*100)+'%';$('fibersV').textContent=Math.round(S.fibers*100)+'%';$('stainV').textContent=Math.round(S.stain*100)+'%';$('glassV').textContent=Math.round(S.glass*100)+'%';
   $('fsizeV').textContent=S.fsize;$('leadV').textContent=S.lead.toFixed(2);
   $('customSize').style.display=S.size==='custom'?'flex':'none';
   $('fontCustom').style.display=S.font==='custom'?'block':'none';
@@ -608,7 +668,7 @@ function labels(){
 
 /* ---------- prévia ---------- */
 let sceneCache={key:'',sc:null};
-function sceneKey(ST){const k=['seed','chaos','deg','layout','pw','ph','bleed','mTop','mBot','mIn','mOut','feather','protect','fibers','stain'];return ST+'|'+k.map(x=>S[x]).join('|');}
+function sceneKey(ST){const k=['seed','chaos','deg','layout','pw','ph','bleed','mTop','mBot','mIn','mOut','feather','protect','fibers','stain','glass'];return ST+'|'+k.map(x=>S[x]).join('|');}
 function getScene(ST){const k=sceneKey(ST);if(sceneCache.key!==k)sceneCache={key:k,sc:buildScene(S,ST)};return sceneCache.sc;}
 let cssK=1; // px de tela por mm
 function fit(){

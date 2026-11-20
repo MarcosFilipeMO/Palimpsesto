@@ -177,7 +177,7 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       <input type="range" id="stain" min="0" max="200" value="100">
       <label>Vidro quebrado: <span id="glassV"></span></label>
       <input type="range" id="glass" min="0" max="100" value="0">
-      <p class="note">Quanto mais alto, mais cacos e menores. Troque a semente para mudar o desenho do estilhaço.</p>
+      <p class="note">Quanto mais alto, mais níveis de quebra (cacos menores). Segue o eixo Ordem ↔ Caos: na ordem os cortes são geométricos; no caos, tortos e irregulares.</p>
     </div>
 
     <div class="grp">
@@ -249,7 +249,7 @@ button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
       <label class="chk"><input type="checkbox" id="split"> Páginas separadas (na dupla)</label>
       <label class="chk"><input type="checkbox" id="transp"> Sem a cor do papel (PNG transparente)</label>
       <button id="share" style="width:100%;margin-top:8px">Copiar link deste papel</button>
-      <p class="note">O PNG sai no tamanho real (com sangria, se houver) e com a resolução gravada no arquivo. Em camadas: papel, manchas e degenerado. Rasgos viram transparência.</p>
+      <p class="note">O PNG sai no tamanho real (com sangria, se houver) e com a resolução gravada no arquivo. Em camadas: papel, manchas e degenerado. </p>
     </div>
   </aside>
 </main>
@@ -385,41 +385,42 @@ function buildScene(S,ST){
         cur.push([x+u*co-v*si,y+u*si+v*co]);}
       flush();}}}
 
-  /* vidro quebrado: espelho estilhaçado — cortes retos sucessivos dividem a página em cacos */
-  if(S.glass>0){const r=RNG(sd,'vidro'),MAXC=48,nc=Math.round(3+S.glass*45);
-    let polys=[[[-g.b-1,-g.b-1],[g.TW+g.b+1,-g.b-1],[g.TW+g.b+1,g.TH+g.b+1],[-g.b-1,g.TH+g.b+1]]];
+  /* vidro quebrado: fractal de cacos — cada caco se divide em dois, recursivamente.
+     Na ordem os cortes são geométricos (perpendiculares à maior aresta, diagonais alternadas);
+     no caos o ângulo, o ponto de corte e a profundidade de cada ramo ficam irregulares. */
+  if(S.glass>0){const maxD=1+Math.round(S.glass*6),segs=[];
     const area=p=>{let a=0;for(let i=0;i<p.length;i++){const [x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];a+=x1*y2-x2*y1;}return Math.abs(a)/2;};
-    const segs=[];
-    for(let k=0;k<MAXC;k++){
-      const pick=r(),u=r(),v=r(),ang=r()*Math.PI,bow=r(),bev=r(),bo=r();
-      if(k>=nc)continue;
-      // escolhe um caco (os grandes têm mais chance de quebrar de novo)
-      const w=polys.map(p=>Math.pow(area(p),1.3));const tot=w.reduce((x,y)=>x+y,0);let acc=0,idx=0;
-      for(;idx<polys.length-1;idx++){acc+=w[idx];if(acc>=pick*tot)break;}
-      const poly=polys[idx];let cx=0,cy=0;poly.forEach(([x,y])=>{cx+=x;cy+=y;});cx/=poly.length;cy/=poly.length;
-      const vx=poly[Math.floor(u*poly.length)];const P=[cx+(vx[0]-cx)*v*.7,cy+(vx[1]-cy)*v*.7];
-      const nx=-Math.sin(ang),ny=Math.cos(ang);const sd_=q=>(q[0]-P[0])*nx+(q[1]-P[1])*ny;
+    const split=(poly,depth,path)=>{
+      const q=RNG(sd,'vidro'+path),u=q(),v=q(),an=q(),keep=q(),bow=q(),bev=q(),bo=q();
+      if(depth>=maxD||area(poly)<6)return;
+      if(depth>0&&keep<c*.5*(.3+depth/maxD))return; // no caos, alguns ramos param antes
+      let cx=0,cy=0;poly.forEach(([x,y])=>{cx+=x;cy+=y;});cx/=poly.length;cy/=poly.length;
+      let L=0,ea=0;for(let i=0;i<poly.length;i++){const p1=poly[i],p2=poly[(i+1)%poly.length],l=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]);if(l>L){L=l;ea=Math.atan2(p2[1]-p1[1],p2[0]-p1[0]);}}
+      const ord=ea+Math.PI/2+(depth%3===1?Math.PI/4:0);
+      const ang=ord+(an-.5)*Math.PI*1.4*c;
+      const vx=poly[Math.floor(u*poly.length)];const P=[cx+(vx[0]-cx)*v*.75*c,cy+(vx[1]-cy)*v*.75*c];
+      const nx=-Math.sin(ang),ny=Math.cos(ang);const sdv=t=>(t[0]-P[0])*nx+(t[1]-P[1])*ny;
       const A=[],B=[],hit=[];
-      for(let i=0;i<poly.length;i++){const p1=poly[i],p2=poly[(i+1)%poly.length],d1=sd_(p1),d2=sd_(p2);
+      for(let i=0;i<poly.length;i++){const p1=poly[i],p2=poly[(i+1)%poly.length],d1=sdv(p1),d2=sdv(p2);
         (d1>=0?A:B).push(p1);
-        if((d1>=0)!==(d2>=0)){const t=d1/(d1-d2);const q=[p1[0]+(p2[0]-p1[0])*t,p1[1]+(p2[1]-p1[1])*t];A.push(q);B.push(q);hit.push(q);}}
-      if(A.length<3||B.length<3||hit.length<2)continue;
-      polys.splice(idx,1,A,B);segs.push({a:hit[0],b:hit[1],bow,bev,bo});}
-    // tons dos cacos: cada um reflete a luz de um jeito
-    const rt=RNG(sd,'cacos');
-    polys.forEach(p=>{const t=rt(),l=rt();add({v:0,ch:l<.45?2:0,k:'f',p,a:.03+t*t*.26});});
-    // rachaduras, chanfros, lascas e pó
+        if((d1>=0)!==(d2>=0)){const t=d1/(d1-d2);const h=[p1[0]+(p2[0]-p1[0])*t,p1[1]+(p2[1]-p1[1])*t];A.push(h);B.push(h);hit.push(h);}}
+      if(A.length<3||B.length<3||hit.length<2)return;
+      segs.push({a:hit[0],b:hit[1],depth,bow,bev,bo});
+      split(A,depth+1,path+'a');split(B,depth+1,path+'b');};
+    split([[-g.b-1,-g.b-1],[g.TW+g.b+1,-g.b-1],[g.TW+g.b+1,g.TH+g.b+1],[-g.b-1,g.TH+g.b+1]],0,'');
+    // rachaduras (mais grossas nos primeiros cortes), chanfros, lascas e pó
     const rc=RNG(sd,'lascas');
     segs.forEach((sg,si)=>{const [ax,ay]=sg.a,[bx,by]=sg.b,dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy);if(len<.5)return;
-      const px=-dy/len,py=dx/len,n=Math.max(2,Math.ceil(len/2.5)),bw=(sg.bow-.5)*len*.05,kt=.25+sg.bo*.5,kj=(sg.bev-.5)*len*.03;
-      const pts=[];for(let k=0;k<=n;k++){const t=k/n,j=(k===0||k===n)?0:nz(t*len*.15+si*3.1,si)*.25+Math.sin(Math.PI*t)*bw+(t<kt?t/kt:(1-t)/(1-kt))*kj;pts.push([ax+dx*t+px*j,ay+dy*t+py*j]);}
-      add({v:0,ch:1,k:'l',p:pts,w:1,a:.08});
-      add({v:0,ch:1,k:'l',p:pts,w:.2,a:.85});
-      add({v:0,ch:2,k:'l',p:pts.map(([x,y])=>[x+px*.3,y+py*.3]),w:.22,a:.7});
+      const px=-dy/len,py=dx/len,n=Math.max(2,Math.ceil(len/2.5)),bw=(sg.bow-.5)*len*.05*c,kt=.25+sg.bo*.5,kj=(sg.bev-.5)*len*.03*c;
+      const pts=[];for(let k=0;k<=n;k++){const t=k/n,j=(k===0||k===n)?0:(nz(t*len*.15+si*3.1,si)*.25*c+Math.sin(Math.PI*t)*bw+(t<kt?t/kt:(1-t)/(1-kt))*kj);pts.push([ax+dx*t+px*j,ay+dy*t+py*j]);}
+      const wk=Math.max(.45,1.25-sg.depth*.13);
+      add({v:0,ch:1,k:'l',p:pts,w:1*wk,a:.08});
+      add({v:0,ch:1,k:'l',p:pts,w:.2*wk,a:.85});
+      add({v:0,ch:2,k:'l',p:pts.map(([x,y])=>[x+px*.3,y+py*.3]),w:.22*wk,a:.7});
       if(sg.bev<.35){const off=-(.6+sg.bo*1.4),t0=.05+sg.bo*.3,t1=.6+sg.bev*1.1;
         const bp=pts.filter((_,k)=>k/n>=t0&&k/n<=t1).map(([x,y])=>[x+px*off,y+py*off]);
         if(bp.length>1){add({v:0,ch:2,k:'l',p:bp,w:.16,a:.55});add({v:0,ch:1,k:'l',p:bp.map(([x,y])=>[x+px*.25,y+py*.25]),w:.12,a:.4});}}
-      const nch=Math.round(len/5);
+      const nch=Math.round(len/5*(.3+c));
       for(let k=0;k<nch;k++){const t=rc(),sdn=rc()<.5?-1:1,sz=.25+Math.pow(rc(),2)*1.4,an=rc()*TAU,kind=rc();
         const x=ax+dx*t+px*sdn*(.2+sz*.4),y=ay+dy*t+py*sdn*(.2+sz*.4);
         if(kind<.55)add({v:0,ch:2,k:'f',p:[[x,y],[x+Math.cos(an)*sz,y+Math.sin(an)*sz],[x+Math.cos(an+1.9)*sz*.6,y+Math.sin(an+1.9)*sz*.6]],a:.55});
@@ -439,40 +440,12 @@ function buildScene(S,ST){
         ex.forEach(([a,b,cc],k)=>{if(k>2+dg*6)return;const d=R*(1.2+a*3.2),an=dir+(b-.5)*2.4;
           add({v:1,ch:0,k:'f',p:blob(x+d*Math.cos(an),y+d*Math.sin(an),.15+cc*R*.22,.2,1,ns+k,10),a:.75});});}}}
 
-  /* escorridos do topo */
-  {const r=RNG(sd,'escorridos');for(let i=0;i<12;i++){const th=r(),x=r()*g.TW,len=r(),w=.6+r()*1.6,ns=r()*999;
-    if(th>=(dg-.22)*1.4)continue;
-    let L=6+Math.pow(len,1.5)*70*dg;
-    for(let k=0;k<8&&S.protect>.3&&zone(x,L)>.3;k++)L*=.7;
-    const p=[];for(let k=0;k<=24;k++){const t=k/24;p.push([x+nz(t*3+ns,ns)*1.2*t,-g.b-1+(L+g.b+1)*t]);}
-    add({v:1,ch:0,k:'l',p,w,a:.7});
-    add({v:1,ch:0,k:'f',p:blob(p[24][0],p[24][1]+w*.2,w*.8,.15,1,ns,12),a:.75});}}
-
   /* poças nos cantos */
   {const r=RNG(sd,'pocas');for(let i=0;i<3;i++){const th=r(),ci=r(),R=r(),ns=r()*999;
     if(th>=(dg-.5)*2)continue;const [cx,cy]=corners[Math.floor(ci*4)];const RR=8+R*22*dg;
     const x=cx+(cx?-1:1)*RR*.2,y=cy+(cy?-1:1)*RR*.2;
     const p=blob(x,y,RR,.35,2,ns,90);add({v:1,ch:0,k:'f',p,a:.5});add({v:1,ch:0,k:'l',p,w:.6,a:.35});
     add({v:1,ch:0,k:'f',p:blob(x,y,RR*.55,.4,2,ns+3,60),a:.18});}}
-
-  /* rasgos */
-  {const r=RNG(sd,'rasgos');for(let i=0;i<5;i++){const th=r(),side=Math.floor(r()*4),pos=.08+r()*.84,dep=r(),wd=r(),tipo=r(),ns=r()*999;
-    if(th>=(dg-.62)*2.6)continue;
-    let E,N,T;
-    if(side===0){E=[pos*g.TW,0];N=[0,1];T=[1,0];}else if(side===1){E=[pos*g.TW,g.TH];N=[0,-1];T=[1,0];}
-    else if(side===2){E=[0,pos*g.TH];N=[1,0];T=[0,1];}else{E=[g.TW,pos*g.TH];N=[-1,0];T=[0,1];}
-    const D=6+dep*24*dg,hw=2+wd*8,tip=(tipo-.5)*hw*1.2;
-    const L=(u,v)=>[E[0]+T[0]*u+N[0]*v,E[1]+T[1]*u+N[1]*v];
-    const jag=(a,b,o)=>{const p=[];const len=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(2,Math.ceil(len/.7));
-      const px=-(b[1]-a[1])/len,py=(b[0]-a[0])/len;
-      for(let k=0;k<=n;k++){const t=k/n,j=(k===0||k===n)?0:nz(k*.9+ns+o,o)*.9;p.push([a[0]+(b[0]-a[0])*t+px*j,a[1]+(b[1]-a[1])*t+py*j]);}return p;};
-    const edgeIn=jag([-hw,0],[tip,D],1).concat(jag([tip,D],[hw,0],2).slice(1));
-    const poly=[[-hw,-(g.b+2)]].concat(edgeIn,[[hw,-(g.b+2)]]).map(([u,v])=>L(u,v));
-    add({v:1,ch:2,k:'f',p:poly,a:1});
-    const rim=edgeIn.map(([u,v])=>L(u,v));
-    add({v:0,ch:1,k:'l',p:rim,w:1.4,a:.18});add({v:0,ch:1,k:'l',p:rim,w:.5,a:.4});
-    const rf=RNG(sd,'franja'+i);
-    for(let k=1;k<rim.length-1;k++){const [x,y]=rim[k];const an=rf()*TAU,l=.3+rf()*1.1;add({v:0,ch:2,k:'l',p:[[x,y],[x+Math.cos(an)*l,y+Math.sin(an)*l]],w:.06,a:.5});}}}
 
   /* colônias de mofo (campo) */
   const molds=[];

@@ -3,8 +3,8 @@
 Gerador de papel de página para o Verbum, irmão da [Entropia](https://marcosfilipemo.github.io/entropia/).
 
 - Eixo **Ordem ↔ Caos**: de velino liso a papel de arquivo, com foxing, umidade, dobras e digitais.
-- **Degenerado**: sangue, escorridos, mofo e rasgos.
-- **Vidro quebrado**: espelho estilhaçado em cacos angulosos, com chanfros, lascas e pó.
+- **Degenerado**: respingos de sangue, poças e mofo.
+- **Vidro quebrado**: fractal de cacos que segue o eixo Ordem ↔ Caos, com chanfros, lascas e pó.
 - **Teto de contraste** separado para a mancha de texto e para as margens, com medidor de ΔL* e de contraste do texto (WCAG).
 - Texto de teste por cima, guias, sangria, simulação de impressão.
 - A moldura da Entropia pode ser colocada por cima (pelo link ou por um SVG exportado).

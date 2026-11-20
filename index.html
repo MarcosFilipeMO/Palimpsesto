@@ -563,11 +563,14 @@ function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
       const dP=(P>0?P:0)+A[o]/255*1.1+(gr>0?gr:0);
       const lt=(P<0?-P:0)+A[o+2]/255*1.1+(gr<0?-gr:0);
       const dS=Sv+A[o+1]/255*1.3;
-      const bl=B[o]/255*1.7*bop,ch=C+B[o+1]/255*1.6;
+      const bl=0,ch=C+B[o+1]/255*1.6;
       let mo=0;if(M>.005){const sp=nSpeck(x*2.8,y*2.8)*.5+.5;mo=M*(.25+1.6*sst(.45,.8,sp+M*.25));}
       const T=dP+dS+bl+ch+mo;
       const dd=Math.hypot(zdx[i],zdy);const z=dd<=0?1:dd>=fe?0:1-sst(0,fe,dd);
       const cap=capOut+(capIn-capOut)*z;
+      // sangue: fora do teto de contraste — opacidade normal, como no Photoshop (100% = gota fresca, opaca)
+      const bv=B[o]/255;let ab=Math.min(1,bv*2.2)*bop;if(S.inRatio<=0)ab*=1-z;
+      const bk=1-.35*clamp((bv-.85)*4,0,1),bR=blood[0]*bk,bG=blood[1]*bk,bB=blood[2]*bk; // borda mais escura onde o sangue acumula
       const t=T>0?cap*Math.tanh(T):0,tl=cap*.45*Math.tanh(lt);
       let alpha=255-B[o+2];if(Hc>.4)alpha*=1-sst(.4,.6,Hc);
       const r0=base[0]+(hl[0]-base[0])*tl,g0=base[1]+(hl[1]-base[1])*tl,b0=base[2]+(hl[2]-base[2])*tl;
@@ -576,10 +579,14 @@ function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
         if(T>0){const iv=1/T,wt=(dP+dS)*iv,wb=bl*iv,wc=ch*iv,wm=mo*iv;
           const mr=tint[0]*wt+blood[0]*wb+charc[0]*wc+mold[0]*wm,mg=tint[1]*wt+blood[1]*wb+charc[1]*wc+mold[1]*wm,mb=tint[2]*wt+blood[2]*wb+charc[2]*wc+mold[2]*wm;
           R=r0+(mr-r0)*t;G=g0+(mg-g0)*t;Bc=b0+(mb-b0)*t;}else{R=r0;G=g0;Bc=b0;}
-        if(mode==='transp'){const Ac=1-(1-tl)*(1-t);if(Ac<=1e-4){Aout=0;}else{const k=1-Ac;R=(R-base[0]*k)/Ac;G=(G-base[1]*k)/Ac;Bc=(Bc-base[2]*k)/Ac;Aout=alpha*Ac;}}
+        if(mode==='transp'){const Ac=1-(1-tl)*(1-t);if(Ac<=1e-4){R=G=Bc=0;}else{const k=1-Ac;R=(R-base[0]*k)/Ac;G=(G-base[1]*k)/Ac;Bc=(Bc-base[2]*k)/Ac;}
+          const Au=ab+Ac*(1-ab);if(Au>1e-4){R=(bR*ab+R*Ac*(1-ab))/Au;G=(bG*ab+G*Ac*(1-ab))/Au;Bc=(bB*ab+Bc*Ac*(1-ab))/Au;}Aout=alpha*Au;}
+        else{R+=(bR-R)*ab;G+=(bG-G)*ab;Bc+=(bB-Bc)*ab;}
       }else if(mode==='papel'){const tP=T>0?t*dP/T:0;R=r0+(tint[0]-r0)*tP;G=g0+(tint[1]-g0)*tP;Bc=b0+(tint[2]-b0)*tP;}
       else if(mode==='manchas'){R=tint[0];G=tint[1];Bc=tint[2];Aout=alpha*(T>0?t*dS/T:0);}
-      else{const sG=bl+ch+mo;if(sG>1e-5){R=(blood[0]*bl+charc[0]*ch+mold[0]*mo)/sG;G=(blood[1]*bl+charc[1]*ch+mold[1]*mo)/sG;Bc=(blood[2]*bl+charc[2]*ch+mold[2]*mo)/sG;Aout=alpha*t*sG/T;}else{R=G=Bc=0;Aout=0;}}
+      else{const sG=ch+mo;let am=0;R=G=Bc=0;
+        if(sG>1e-5){R=(charc[0]*ch+mold[0]*mo)/sG;G=(charc[1]*ch+mold[1]*mo)/sG;Bc=(charc[2]*ch+mold[2]*mo)/sG;am=t*sG/T;}
+        const Au=ab+am*(1-ab);if(Au>1e-4){R=(bR*ab+R*am*(1-ab))/Au;G=(bG*ab+G*am*(1-ab))/Au;Bc=(bB*ab+Bc*am*(1-ab))/Au;}Aout=alpha*Au;}
       if(sim){R=SIM[R|0];G=SIM[G|0];Bc=SIM[Bc|0];}
       out[o]=R;out[o+1]=G;out[o+2]=Bc;out[o+3]=Aout;
       if(st&&inY&&x>=0&&x<=g.TW&&alpha>250){

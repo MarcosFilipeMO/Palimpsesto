@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palimpsesto — gerador de papel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Oswald:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#14100c; --panel:#1d1711; --line:#3b2f22; --tx:#ece3d0; --mut:#a8977a; --ac:#C2452D; --hi:#E3CFA2;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:baseline;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{margin:0;font:700 26px/1 Oswald,Impact,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--hi)}
+header h1 span{color:var(--ac)}
+header p{margin:0;font-family:"Special Elite",monospace;color:var(--mut);font-size:13px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:calc(100vh - 58px)}
+#stage{position:relative;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(ellipse at center,#2a2118 0%,#0b0806 80%)}
+#view{width:100%;height:calc(100vh - 110px);display:flex;align-items:center;justify-content:center}
+#wrap{position:relative;box-shadow:0 10px 40px rgba(0,0,0,.6);
+  background:repeating-conic-gradient(#2b2b2b 0 25%,#1b1b1b 0 50%) 0 0/12px 12px}
+#wrap canvas{display:block;width:100%;height:100%}
+#wrap .ov{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#frameImg{position:absolute;display:none}
+.tb{position:absolute;overflow:hidden;text-align:justify;hyphens:auto;-webkit-hyphens:auto}
+.tb h3{margin:0 0 .6em;font-weight:600;font-size:1.9em;line-height:1.1;text-align:left;break-after:avoid}
+.tb p{margin:0;text-indent:1.4em}
+.tb p.first{text-indent:0}
+.tb p.first::first-letter{float:left;font-size:3.1em;line-height:.85;padding:.06em .08em 0 0}
+.gd{position:absolute;border:1px dashed rgba(194,69,45,.75)}
+.gd.trim{border-color:rgba(120,170,255,.6)}
+aside{background:var(--panel);border-left:1px solid var(--line);padding:14px 16px 40px;overflow:auto;max-height:calc(100vh - 58px)}
+.grp{border-top:1px solid var(--line);padding:12px 0 6px}
+.grp:first-child{border-top:0;padding-top:0}
+.grp h2{margin:0 0 8px;font:500 13px/1 Oswald,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+label{display:block;margin:8px 0 3px;font-size:12px;color:var(--mut)}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1;min-width:0}
+input[type=range]{width:100%;accent-color:var(--ac)}
+select,input[type=text],input[type=number],input[type=url]{width:100%;background:#120e0a;color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:7px 8px;font:inherit}
+input[type=color]{width:100%;height:34px;border:1px solid var(--line);border-radius:6px;background:#120e0a;padding:2px}
+.chk{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;color:var(--tx)}
+.chk input{accent-color:var(--ac);width:16px;height:16px}
+button{background:#2a2118;color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:500 13px/1 Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+button:hover{border-color:var(--hi)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.btns button{flex:1 1 auto}
+.axis{padding:12px;border:1px solid var(--line);border-radius:8px;background:#120e0a}
+.axis .ends{display:flex;justify-content:space-between;font:500 12px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.axis .ends b{color:var(--hi);font-weight:500}.axis .ends i{color:var(--ac);font-style:normal}
+.axis .val{font-family:"Special Elite",monospace;text-align:center;font-size:13px;margin-top:2px}
+#degBox{margin-top:8px;border-color:#4a1414;background:#140707}
+#degBox .ends b{color:var(--mut)}#degBox .ends i{color:#e0453a}
+#deg{accent-color:#9B1B1B}
+#degBox .val{color:#e8b4ae}
+#meter{margin-top:8px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#120e0a;font-size:12.5px;line-height:1.5}
+#meter b{font-family:"Special Elite",monospace;font-weight:400}
+#meter .ok{color:#9fd49a}#meter .warn{color:#e8c25a}#meter .bad{color:#ff6b5a}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;background:#120e0a}
+.seg button.on{background:var(--hi);color:#14100c}
+.note{font-size:11px;color:var(--mut);margin:6px 0 0}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
+@media (max-width:820px){
+  main{grid-template-columns:1fr;min-height:0}
+  #stage{padding:12px;position:sticky;top:0;z-index:2;background:#0b0806}
+  #view{height:42vh}
+  aside{max-height:none;border-left:0;border-top:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Palim<span>p</span>sesto</h1>
+  <p>papel de página · raspado, manchado, reescrito</p>
+</header>
+<main>
+  <section id="stage"><div id="view"><div id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="ov" id="ovFrame"><img id="frameImg" alt=""></div>
+    <div class="ov" id="ovText"></div>
+    <div class="ov" id="ovGuides"></div>
+  </div></div></section>
+  <aside>
+    <div class="grp">
+      <div class="axis" id="entropy">
+        <div class="ends"><b>Ordem</b><i>Caos</i></div>
+        <input type="range" id="chaos" min="0" max="100" value="25">
+        <div class="val" id="cval"></div>
+      </div>
+      <div class="axis" id="degBox">
+        <div class="ends"><b>Puro</b><i>Degenerado</i></div>
+        <input type="range" id="deg" min="0" max="100" value="0">
+        <div class="val" id="dval"></div>
+      </div>
+      <div class="btns" style="margin-top:8px">
+        <button data-preset="velino">Velino</button>
+        <button data-preset="manuscrito">Manuscrito</button>
+        <button data-preset="arquivo">Arquivo</button>
+        <button data-preset="ruina">Ruína</button>
+        <button data-preset="degenerado">Degenerado</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Leitura</h2>
+      <label>Teto de contraste na mancha de texto: <span id="capInV"></span></label>
+      <input type="range" id="capIn" min="2" max="40" value="12">
+      <label>Teto de contraste nas margens: <span id="capOutV"></span></label>
+      <input type="range" id="capOut" min="5" max="100" value="32">
+      <label>Proteção da mancha de texto: <span id="protectV"></span></label>
+      <input type="range" id="protect" min="0" max="100" value="80">
+      <div id="meter">medindo…</div>
+      <label class="chk"><input type="checkbox" id="sim"> Simular impressão (papel escurece)</label>
+      <label class="chk"><input type="checkbox" id="showText" checked> Texto de teste por cima</label>
+      <label class="chk"><input type="checkbox" id="guides" checked> Guias (mancha de texto e corte)</label>
+      <p class="note">O teto limita quanto o papel pode se afastar da cor base. Dentro da mancha de texto, ΔL* até ~10 costuma passar despercebido na leitura.</p>
+    </div>
+
+    <div class="grp">
+      <h2>Semente</h2>
+      <div class="row">
+        <input type="text" id="seed" value="emunah">
+        <button id="dice" style="flex:0 0 auto" title="Sortear">⚄ Sortear</button>
+      </div>
+      <p class="note">Mesma semente + mesmos ajustes = mesmo papel. Troque a semente para variar de uma página para outra.</p>
+    </div>
+
+    <div class="grp">
+      <h2>Página</h2>
+      <div class="seg" id="layout">
+        <button data-v="dupla">Página dupla</button>
+        <button data-v="unica">Página única</button>
+      </div>
+      <label>Formato (cada página)</label>
+      <select id="size">
+        <option value="210x297">A4 — 210 × 297 mm</option>
+        <option value="148x210">A5 — 148 × 210 mm</option>
+        <option value="170x240">17 × 24 cm</option>
+        <option value="160x230">16 × 23 cm</option>
+        <option value="216x279">Carta — 216 × 279 mm</option>
+        <option value="custom">Personalizado…</option>
+      </select>
+      <div class="row" id="customSize" style="display:none;margin-top:6px">
+        <input type="number" id="pw" value="210" min="50" max="600" title="largura mm">
+        <input type="number" id="ph" value="297" min="50" max="600" title="altura mm">
+      </div>
+      <label>Sangria</label>
+      <select id="bleed">
+        <option value="0">Sem sangria</option>
+        <option value="3">3 mm</option>
+        <option value="5">5 mm</option>
+      </select>
+      <label>Margens da mancha de texto (mm)</label>
+      <div class="row">
+        <div><label>Sup.: <span id="mTopV"></span></label><input type="range" id="mTop" min="5" max="70" value="22"></div>
+        <div><label>Inf.: <span id="mBotV"></span></label><input type="range" id="mBot" min="5" max="70" value="28"></div>
+      </div>
+      <div class="row">
+        <div><label>Interna: <span id="mInV"></span></label><input type="range" id="mIn" min="5" max="70" value="20"></div>
+        <div><label>Externa: <span id="mOutV"></span></label><input type="range" id="mOut" min="5" max="70" value="24"></div>
+      </div>
+      <label>Transição mancha → margem: <span id="featherV"></span> mm</label>
+      <input type="range" id="feather" min="0" max="30" value="8">
+    </div>
+
+    <div class="grp">
+      <h2>Textura</h2>
+      <label>Grão: <span id="grainV"></span></label>
+      <input type="range" id="grain" min="0" max="100" value="50">
+      <label>Fibras: <span id="fibersV"></span></label>
+      <input type="range" id="fibers" min="0" max="100" value="50">
+      <label>Intensidade das manchas: <span id="stainV"></span></label>
+      <input type="range" id="stain" min="0" max="200" value="100">
+    </div>
+
+    <div class="grp">
+      <h2>Cor</h2>
+      <div class="btns" style="margin-bottom:4px">
+        <button data-pal="verbum">Verbum claro</button>
+        <button data-pal="osso">Osso</button>
+        <button data-pal="pergaminho">Pergaminho</button>
+        <button data-pal="cimento">Cimento</button>
+        <button data-pal="amarelo">Amarelo</button>
+        <button data-pal="escuro">Verbum escuro</button>
+        <button data-pal="carvao">Carvão</button>
+      </div>
+      <div class="row">
+        <div><label>Papel</label><input type="color" id="base"></div>
+        <div><label>Mancha</label><input type="color" id="tint"></div>
+        <div><label>Sangue</label><input type="color" id="blood"></div>
+        <div><label>Mofo</label><input type="color" id="mold"></div>
+        <div><label>Texto</label><input type="color" id="text"></div>
+      </div>
+      <p class="note">Nas paletas escuras (fundo escuro, texto claro) as manchas clareiam o papel em vez de escurecer.</p>
+    </div>
+
+    <div class="grp">
+      <h2>Texto de teste</h2>
+      <label>Fonte</label>
+      <select id="font">
+        <option>EB Garamond</option>
+        <option>IM Fell English</option>
+        <option>Cormorant Garamond</option>
+        <option>Spectral</option>
+        <option>Special Elite</option>
+        <option>Oswald</option>
+        <option value="custom">Instalada no computador…</option>
+      </select>
+      <input type="text" id="fontCustom" placeholder="Nome exato da fonte" style="margin-top:6px;display:none">
+      <div class="row">
+        <div><label>Corpo: <span id="fsizeV"></span> pt</label><input type="range" id="fsize" min="7" max="16" step=".5" value="10"></div>
+        <div><label>Entrelinha: <span id="leadV"></span></label><input type="range" id="lead" min="100" max="200" value="135"></div>
+      </div>
+      <label>Colunas</label>
+      <select id="cols"><option value="1">1 coluna</option><option value="2">2 colunas</option></select>
+    </div>
+
+    <div class="grp">
+      <h2>Moldura da Entropia</h2>
+      <label>Link da moldura</label>
+      <div class="row">
+        <input type="url" id="entLink" placeholder="https://…/entropia/#…">
+        <button id="entGo" style="flex:0 0 auto">Usar</button>
+      </div>
+      <label>Ou um SVG exportado</label>
+      <input type="file" id="entFile" accept=".svg,image/svg+xml" style="font-size:12px">
+      <label class="chk"><input type="checkbox" id="showFrame" checked> Mostrar a moldura por cima</label>
+      <p class="note">O link copia formato e página da moldura e a desenha por cima do papel (só para conferir, ela não vai no PNG).</p>
+    </div>
+
+    <div class="grp">
+      <h2>Exportar</h2>
+      <div class="btns">
+        <button class="pri" id="expPng">PNG</button>
+        <button id="expLayers">PNG em camadas</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label>Resolução</label>
+          <select id="dpi"><option value="150">150 dpi</option><option value="300" selected>300 dpi</option></select></div>
+        <div></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="split"> Páginas separadas (na dupla)</label>
+      <label class="chk"><input type="checkbox" id="transp"> Sem a cor do papel (PNG transparente)</label>
+      <button id="share" style="width:100%;margin-top:8px">Copiar link deste papel</button>
+      <p class="note">O PNG sai no tamanho real (com sangria, se houver) e com a resolução gravada no arquivo. Em camadas: papel, manchas e degenerado. Rasgos e queimaduras viram transparência.</p>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   PALIMPSESTO — gerador de papel ordem ↔ caos
+   Tudo em milímetros. Sem dependências.
+   ============================================================ */
+
+/* ---------- aleatoriedade com semente (igual à Entropia) ---------- */
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19;}
+  h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^=h>>>16)>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function RNG(seed,salt){return mulberry32(hashStr(String(seed)+'§'+salt));}
+function vnoise(rng){
+  const perm=new Uint16Array(512),val=new Float32Array(256);
+  const p=[...Array(256).keys()];for(let i=255;i>0;i--){const j=Math.floor(rng()*(i+1));[p[i],p[j]]=[p[j],p[i]];}
+  for(let i=0;i<512;i++)perm[i]=p[i&255];for(let i=0;i<256;i++)val[i]=rng()*2-1;
+  return (x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;const u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+    const X=ix&255,Y=iy&255,X1=(ix+1)&255,Y1=(iy+1)&255;
+    const a=val[perm[perm[X]+Y]],b=val[perm[perm[X1]+Y]],c=val[perm[perm[X]+Y1]],d=val[perm[perm[X1]+Y1]];
+    return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;};
+}
+function fbm(n,x,y,o){let s=0,a=1,f=1,t=0;for(let i=0;i<o;i++){s+=a*n(x*f+i*19.1,y*f+i*7.3);t+=a;a*=.5;f*=2.02;}return s/t;}
+function phash(x,y){let h=(Math.imul(x,374761393)+Math.imul(y,668265263))|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296*2-1;}
+const TAU=Math.PI*2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const g01=(v,a,b)=>clamp((v-a)/(b-a),0,1);
+const sst=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t);};
+
+/* ---------- geometria ---------- */
+function geometry(S){
+  const dupla=S.layout==='dupla',pw=S.pw,ph=S.ph,b=S.bleed;
+  const TW=dupla?pw*2:pw,TH=ph;
+  const g={dupla,pw,ph,b,TW,TH,W:TW+2*b,H:TH+2*b,pages:dupla?[{x0:0},{x0:pw}]:[{x0:0}]};
+  // mancha de texto: na dupla, página esquerda tem a margem interna à direita
+  g.R=g.pages.map((pg,i)=>{const L=(dupla&&i===0)?S.mOut:S.mIn,Rt=(dupla&&i===0)?S.mIn:S.mOut;
+    return {x:pg.x0+L,y:S.mTop,w:Math.max(5,pw-L-Rt),h:Math.max(5,ph-S.mTop-S.mBot)};});
+  return g;
+}
+const edgeDist=(g,x,y)=>Math.min(x,g.TW-x,y,g.TH-y); // só bordas externas (a lombada não conta)
+function zoneAt(g,S,x,y){
+  const r=g.R[(g.dupla&&x>=g.pw)?1:0];
+  const dx=Math.max(r.x-x,0,x-(r.x+r.w)),dy=Math.max(r.y-y,0,y-(r.y+r.h));
+  const d=Math.hypot(dx,dy),f=Math.max(.1,S.feather);
+  return d<=0?1:d>=f?0:1-sst(0,f,d);
+}
+
+/* ============================================================
+   CENA: primitivas vetoriais + campos de baixa frequência
+   Primitivas: v=0 → canais (0 escurece papel, 1 mancha, 2 clareia)
+               v=1 → canais (0 sangue, 1 carvão, 2 furo)
+   Todos os sorteios acontecem sempre; o nível decide o que aparece.
+   ============================================================ */
+function buildScene(S,ST){
+  const g=geometry(S),c=S.chaos,dg=S.deg,sd=S.seed,st=S.stain;
+  const prims=[];
+  const nz=vnoise(RNG(sd,'nz'));
+  const zone=(x,y)=>zoneAt(g,S,x,y);
+  const skip=(x,y,draw)=>draw<zone(x,y)*S.protect*.95;
+  const corners=[[0,0],[g.TW,0],[0,g.TH],[g.TW,g.TH]];
+  const edgePt=(r,band)=>{const u=r(),v=r(),w=r();const bd=Math.pow(w,1.5)*band;const s=Math.floor(u*4);
+    if(s===0)return [v*g.TW,bd];if(s===1)return [v*g.TW,g.TH-bd];if(s===2)return [bd,v*g.TH];return [g.TW-bd,v*g.TH];};
+  const blob=(x,y,R,amp,fr,ns,n)=>{const p=[];n=n||Math.max(14,Math.round(R*6));for(let k=0;k<=n;k++){const a=k/n*TAU;const rr=R*(1+amp*nz(Math.cos(a)*fr+ns,Math.sin(a)*fr+ns*.7));p.push([x+rr*Math.cos(a),y+rr*Math.sin(a)]);}return p;};
+  const add=o=>{o.a=clamp(o.a,0,1);prims.push(o);};
+
+  /* fibras (papel) */
+  {const r=RNG(sd,'fibras');const N=Math.round(g.W*g.H*.028);
+    for(let i=0;i<N;i++){const th=r(),x=r()*g.W-g.b,y=r()*g.H-g.b,a=r()*TAU,L=.6+Math.pow(r(),2.2)*5.5,bend=(r()-.5)*1.6,w=.03+r()*.09,al=.12+r()*.35,lt=r()<.33;
+      if(th>=S.fibers)continue;
+      const p=[[x,y]];let px=x,py=y;for(let k=1;k<=6;k++){const aa=a+bend*k/6;px+=Math.cos(aa)*L/6;py+=Math.sin(aa)*L/6;p.push([px,py]);}
+      add({v:0,ch:lt?2:0,k:'l',p,w,a:al*(lt?.8:1)});}}
+
+  /* foxing — pintas de ferrugem */
+  {const r=RNG(sd,'foxing');const band=Math.min(g.pw,g.ph)*.3;
+    for(let i=0;i<150;i++){const th=r(),sk=r(),[ex,ey]=edgePt(r,band),uni=r(),ux=r()*g.TW,uy=r()*g.TH,n=1+Math.floor(r()*7),spread=.6+r()*5;
+      const sp=[];for(let k=0;k<8;k++)sp.push([r(),r(),r(),r()]);
+      if(th>=(c-.12)*1.4*st)continue;
+      const cx=uni<.3?ux:ex,cy=uni<.3?uy:ey;if(skip(cx,cy,sk))continue;
+      for(let k=0;k<n;k++){const [a,b,rr,al]=sp[k];const an=a*TAU,dd=Math.sqrt(b)*spread;
+        add({v:0,ch:1,k:'r',x:cx+Math.cos(an)*dd,y:cy+Math.sin(an)*dd,r:.15+Math.pow(rr,2.5)*1.7,a:(.35+al*.6)*Math.min(1,st)});}}}
+
+  /* manchas de umidade (campo) */
+  const tides=[];
+  {const r=RNG(sd,'umidade');for(let i=0;i<10;i++){const th=r(),sk=r(),[x,y]=edgePt(r,Math.min(g.pw,g.ph)*.35),R=10+Math.pow(r(),1.3)*48,ns=r()*1000,amt=.6+r()*.6,ring2=r();
+    if(th>=(c-.28)*1.5*st)continue;if(skip(x,y,sk))continue;tides.push({x,y,R,ns,amt:amt*Math.min(1.6,st),ring2});}}
+
+  /* dobras */
+  {const r=RNG(sd,'dobras');for(let i=0;i<4;i++){const th=r(),type=r(),p1=r(),p2=r(),p3=r(),ns=r()*999,side=r()<.5?1:-1;
+    if(th>=(c-.45)*1.7*st)continue;
+    let A,B;
+    if(type<.4){const y=g.TH*(.3+p1*.4);A=[-g.b-2,y+(p2-.5)*8];B=[g.TW+g.b+2,y+(p3-.5)*8];}
+    else if(type<.7){const pg=g.pages[Math.floor(p1*g.pages.length)];const x=pg.x0+g.pw*(.3+p2*.4);A=[x+(p3-.5)*6,-g.b-2];B=[x-(p3-.5)*6,g.TH+g.b+2];}
+    else{const [cx,cy]=corners[Math.floor(p1*4)];const L=12+p2*26,L2=L*(.7+p3*.6);const sx=cx===0?1:-1,sy=cy===0?1:-1;
+      const P0=[cx+sx*L,cy],P1=[cx,cy+sy*L2];const dx=P1[0]-P0[0],dy=P1[1]-P0[1];A=[P0[0]-dx*.15,P0[1]-dy*.15];B=[P1[0]+dx*.15,P1[1]+dy*.15];}
+    const dx=B[0]-A[0],dy=B[1]-A[1],len=Math.hypot(dx,dy),nx=-dy/len*side,ny=dx/len*side;const n=Math.ceil(len);
+    const line=off=>{const p=[];for(let k=0;k<=n;k++){const t=k/n,w=nz(t*len*.08+ns,ns)*.35+off;p.push([A[0]+dx*t+nx*w,A[1]+dy*t+ny*w]);}return p;};
+    const k=Math.min(1.5,st);
+    add({v:0,ch:1,k:'l',p:line(2.2),w:4,a:.06*k});
+    add({v:0,ch:1,k:'l',p:line(.5),w:1.5,a:.13*k});
+    add({v:0,ch:1,k:'l',p:line(0),w:.22,a:.5*k});
+    add({v:0,ch:2,k:'l',p:line(-.6),w:1.1,a:.45*k});}}
+
+  /* digitais (viram sangue no Degenerado) */
+  {const r=RNG(sd,'digitais');for(let i=0;i<6;i++){const th=r(),sk=r(),[x,y]=edgePt(r,22),rot=r()*TAU,sz=r(),bt=r(),ns=r()*999;
+    if(th>=(c-.55)*1.9*st)continue;if(skip(x,y,sk))continue;
+    const bl=dg>0&&bt<(dg-.25)*1.6;
+    const h=9+sz*5,a=h*.31,b=h/2,nR=Math.floor(b/.5),co=Math.cos(rot),si=Math.sin(rot);
+    for(let k=1;k<=nR;k++){const s=k/nR;let cur=[];const segN=Math.max(16,Math.round(70*s));
+      const flush=()=>{if(cur.length>1)add({v:bl?1:0,ch:bl?0:1,k:'l',p:cur,w:.2,a:(bl?.5:.24)*(1-.45*s)});cur=[];};
+      for(let q=0;q<=segN;q++){const t=q/segN*TAU;
+        if(nz(t*1.8+k*.9+ns,k*.37)>.32){flush();continue;}
+        const wob=1+.07*nz(Math.cos(t)*2+ns,Math.sin(t)*2+k*.13);
+        const u=Math.cos(t)*a*s*wob,v=Math.sin(t)*b*s*wob-b*.18*(1-s);
+        cur.push([x+u*co-v*si,y+u*si+v*co]);}
+      flush();}}}
+
+  /* ---- DEGENERADO ---- */
+  /* respingos de sangue */
+  {const r=RNG(sd,'gotas');const band=8+dg*28;
+    for(let i=0;i<90;i++){const th=r(),sk=r(),[x,y]=edgePt(r,band),sz=r(),kind=r(),dir=r()*TAU,ns=r()*999;const ex=[];for(let k=0;k<8;k++)ex.push([r(),r(),r()]);
+      if(th>=dg*.8)continue;if(skip(x,y,sk))continue;
+      if(kind<.6){const R=.25+Math.pow(sz,2.2)*(1.1+dg*2.2);const p=blob(x,y,R,.25,1,ns);
+        add({v:1,ch:0,k:'f',p,a:.6+sz*.3});add({v:1,ch:0,k:'l',p,w:Math.min(.35,R*.25),a:.3});}
+      else{const R=.8+Math.pow(sz,2)*(2+dg*7);const p=blob(x,y,R,.5,1.5,ns);
+        add({v:1,ch:0,k:'f',p,a:.65});add({v:1,ch:0,k:'l',p,w:.35,a:.3});
+        ex.forEach(([a,b,cc],k)=>{if(k>2+dg*6)return;const d=R*(1.2+a*3.2),an=dir+(b-.5)*2.4;
+          add({v:1,ch:0,k:'f',p:blob(x+d*Math.cos(an),y+d*Math.sin(an),.15+cc*R*.22,.2,1,ns+k,10),a:.75});});}}}
+
+  /* escorridos do topo */
+  {const r=RNG(sd,'escorridos');for(let i=0;i<12;i++){const th=r(),x=r()*g.TW,len=r(),w=.6+r()*1.6,ns=r()*999;
+    if(th>=(dg-.22)*1.4)continue;
+    let L=6+Math.pow(len,1.5)*70*dg;
+    for(let k=0;k<8&&S.protect>.3&&zone(x,L)>.3;k++)L*=.7;
+    const p=[];for(let k=0;k<=24;k++){const t=k/24;p.push([x+nz(t*3+ns,ns)*1.2*t,-g.b-1+(L+g.b+1)*t]);}
+    add({v:1,ch:0,k:'l',p,w,a:.7});
+    add({v:1,ch:0,k:'f',p:blob(p[24][0],p[24][1]+w*.2,w*.8,.15,1,ns,12),a:.75});}}
+
+  /* poças nos cantos */
+  {const r=RNG(sd,'pocas');for(let i=0;i<3;i++){const th=r(),ci=r(),R=r(),ns=r()*999;
+    if(th>=(dg-.5)*2)continue;const [cx,cy]=corners[Math.floor(ci*4)];const RR=8+R*22*dg;
+    const x=cx+(cx?-1:1)*RR*.2,y=cy+(cy?-1:1)*RR*.2;
+    const p=blob(x,y,RR,.35,2,ns,90);add({v:1,ch:0,k:'f',p,a:.5});add({v:1,ch:0,k:'l',p,w:.6,a:.35});
+    add({v:1,ch:0,k:'f',p:blob(x,y,RR*.55,.4,2,ns+3,60),a:.18});}}
+
+  /* rasgos */
+  {const r=RNG(sd,'rasgos');for(let i=0;i<5;i++){const th=r(),side=Math.floor(r()*4),pos=.08+r()*.84,dep=r(),wd=r(),tipo=r(),ns=r()*999;
+    if(th>=(dg-.62)*2.6)continue;
+    let E,N,T;
+    if(side===0){E=[pos*g.TW,0];N=[0,1];T=[1,0];}else if(side===1){E=[pos*g.TW,g.TH];N=[0,-1];T=[1,0];}
+    else if(side===2){E=[0,pos*g.TH];N=[1,0];T=[0,1];}else{E=[g.TW,pos*g.TH];N=[-1,0];T=[0,1];}
+    const D=6+dep*24*dg,hw=2+wd*8,tip=(tipo-.5)*hw*1.2;
+    const L=(u,v)=>[E[0]+T[0]*u+N[0]*v,E[1]+T[1]*u+N[1]*v];
+    const jag=(a,b,o)=>{const p=[];const len=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(2,Math.ceil(len/.7));
+      const px=-(b[1]-a[1])/len,py=(b[0]-a[0])/len;
+      for(let k=0;k<=n;k++){const t=k/n,j=(k===0||k===n)?0:nz(k*.9+ns+o,o)*.9;p.push([a[0]+(b[0]-a[0])*t+px*j,a[1]+(b[1]-a[1])*t+py*j]);}return p;};
+    const edgeIn=jag([-hw,0],[tip,D],1).concat(jag([tip,D],[hw,0],2).slice(1));
+    const poly=[[-hw,-(g.b+2)]].concat(edgeIn,[[hw,-(g.b+2)]]).map(([u,v])=>L(u,v));
+    add({v:1,ch:2,k:'f',p:poly,a:1});
+    const rim=edgeIn.map(([u,v])=>L(u,v));
+    add({v:0,ch:1,k:'l',p:rim,w:1.4,a:.18});add({v:0,ch:1,k:'l',p:rim,w:.5,a:.4});
+    const rf=RNG(sd,'franja'+i);
+    for(let k=1;k<rim.length-1;k++){const [x,y]=rim[k];const an=rf()*TAU,l=.3+rf()*1.1;add({v:0,ch:2,k:'l',p:[[x,y],[x+Math.cos(an)*l,y+Math.sin(an)*l]],w:.06,a:.5});}}}
+
+  /* colônias de mofo (campo) */
+  const molds=[];
+  {const r=RNG(sd,'mofo');for(let i=0;i<7;i++){const th=r(),sk=r(),[x,y]=edgePt(r,Math.min(g.pw,g.ph)*.25),R=r(),ns=r()*999;
+    if(th>=(dg-.32)*1.6)continue;if(skip(x,y,sk))continue;molds.push({x,y,R:(6+R*24)*(.5+dg),ns});}}
+
+  /* ---- campos de baixa frequência (grade de ST mm) ---- */
+  const gw=Math.ceil(g.W/ST)+2,gh=Math.ceil(g.H/ST)+2,N=gw*gh;
+  const cP=new Float32Array(N),cS=new Float32Array(N),cC=new Float32Array(N),cM=new Float32Array(N),cH=new Float32Array(N);
+  const nM=vnoise(RNG(sd,'mancha')),nE=vnoise(RNG(sd,'borda')),nT=vnoise(RNG(sd,'agua')),nO=vnoise(RNG(sd,'mofo-n')),nB=vnoise(RNG(sd,'fogo'));
+  const amp=.16+c*.6;
+  const gb=g01(dg,.5,1),depth=1.5+gb*15,gH=g01(dg,.78,1);
+  const wearA=(.1+c*1.1)*st,wearF=1.5+c*9;
+  for(let j=0;j<gh;j++){const y=-g.b+j*ST;
+    for(let i=0;i<gw;i++){const x=-g.b+i*ST,id=j*gw+i;
+      cP[id]=amp*(fbm(nM,x/40,y/40,4)*1.5+.45*fbm(nM,x/9+50,y/9,3)*1.5);
+      const e=Math.max(0,edgeDist(g,x,y));
+      let Sv=wearA*Math.exp(-e/wearF)*(.55+.45*nE(x/7,y/7));
+      for(const t of tides){const dx=x-t.x,dy=y-t.y;if(dx>t.R*1.5||dx<-t.R*1.5||dy>t.R*1.5||dy<-t.R*1.5)continue;
+        const d=Math.hypot(dx,dy),a=Math.atan2(dy,dx),ca=Math.cos(a),sa=Math.sin(a);
+        const Rb=t.R*(1+.25*nT(ca*1.4+t.ns,sa*1.4+t.ns)+.07*nT(ca*5+t.ns,sa*5-t.ns));const q=d/Rb;
+        if(q<1)Sv+=t.amt*.16*(.7+.5*nT(x/5+t.ns,y/5));
+        const q1=(q-1)/.025;Sv+=t.amt*.9*Math.exp(-q1*q1);
+        if(t.ring2<.6){const q2=(q-.8)/.02;Sv+=t.amt*.45*Math.exp(-q2*q2);}}
+      cS[id]=Sv;
+      let M=0;for(const m of molds){const dx=x-m.x,dy=y-m.y;if(dx>m.R*1.6||dx<-m.R*1.6||dy>m.R*1.6||dy<-m.R*1.6)continue;
+        const a=Math.atan2(dy,dx);const q=Math.hypot(dx,dy)/(m.R*(1+.4*nO(Math.cos(a)*1.6+m.ns,Math.sin(a)*1.6+m.ns)));
+        if(q<1.3)M+=(1-sst(.15,1.15,q))*(.55+.45*nO(x/2.5+m.ns,y/2.5));}
+      cM[id]=M;
+      if(gb>0){const f=e-depth*(.3+.9*(nB(x/20,y/20)*.5+.5))-2*gb*nB(x/4+9,y/4);
+        cC[id]=f<0?2.4:1.8*Math.exp(-f/(1+gb*3.5));
+        if(gH>0)cH[id]=clamp(.5+(-f-1.5-(1-gH)*depth)/1.2,0,1);}
+    }}
+  // caixas para descartar primitivas fora da faixa renderizada
+  prims.forEach(p=>{if(p.k==='r'){p.y0=p.y-p.r;p.y1=p.y+p.r;p.x0=p.x-p.r;p.x1=p.x+p.r;return;}
+    let a=1e9,b=-1e9,l=1e9,rr=-1e9;for(const [x,y] of p.p){if(y<a)a=y;if(y>b)b=y;if(x<l)l=x;if(x>rr)rr=x;}const m=(p.w||0)+.5;p.y0=a-m;p.y1=b+m;p.x0=l-m;p.x1=rr+m;});
+  return {g,S,prims,ST,gw,gh,cP,cS,cC,cM,cH,nTooth:vnoise(RNG(sd,'dente')),nSpeck:vnoise(RNG(sd,'esporo')),seedX:hashStr(sd+'px')&0xffff};
+}
+
+/* ---------- cores ---------- */
+const hex=h=>{h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];};
+const mixc=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+const LIN=new Float32Array(256);for(let i=0;i<256;i++){const c=i/255;LIN[i]=c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4);}
+const relLum=([r,g,b])=>.2126*LIN[Math.round(r)]+.7152*LIN[Math.round(g)]+.0722*LIN[Math.round(b)];
+const Lstar=Y=>Y>.008856?116*Math.cbrt(Y)-16:903.3*Y;
+const SIM=new Uint8ClampedArray(256);for(let i=0;i<256;i++)SIM[i]=Math.round(255*Math.pow(i/255,1.2));
+
+/* ---------- renderização de uma região (px) ---------- */
+const offA=document.createElement('canvas'),offB=document.createElement('canvas');
+function vecLayer(cv,sc,v,ppm,rx0,ry0,rw,rh){
+  if(cv.width!==rw||cv.height!==rh){cv.width=rw;cv.height=rh;}
+  const ctx=cv.getContext('2d',{willReadFrequently:true});
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';ctx.fillStyle='#000';ctx.fillRect(0,0,rw,rh);
+  ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.lineJoin='round';
+  const b=sc.g.b;ctx.setTransform(ppm,0,0,ppm,b*ppm-rx0,b*ppm-ry0);
+  const my0=ry0/ppm-b,my1=(ry0+rh)/ppm-b,mx0=rx0/ppm-b,mx1=(rx0+rw)/ppm-b;
+  const COL=['255,0,0','0,255,0','0,0,255'];
+  for(const p of sc.prims){if(p.v!==v||p.y1<my0||p.y0>my1||p.x1<mx0||p.x0>mx1)continue;const col=COL[p.ch];
+    if(p.k==='r'){const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);gr.addColorStop(0,`rgba(${col},${p.a})`);gr.addColorStop(.5,`rgba(${col},${p.a*.6})`);gr.addColorStop(1,`rgba(${col},0)`);
+      ctx.fillStyle=gr;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,TAU);ctx.fill();continue;}
+    ctx.beginPath();ctx.moveTo(p.p[0][0],p.p[0][1]);for(let i=1;i<p.p.length;i++)ctx.lineTo(p.p[i][0],p.p[i][1]);
+    if(p.k==='f'){ctx.closePath();ctx.fillStyle=`rgba(${col},${p.a})`;ctx.fill();}
+    else{ctx.strokeStyle=`rgba(${col},${p.a})`;ctx.lineWidth=p.w;ctx.stroke();}}
+  return ctx.getImageData(0,0,rw,rh).data;
+}
+/* mode: full | transp | papel | manchas | degen */
+function renderRegion(sc,ppm,rx0,ry0,rw,rh,mode,opt){
+  opt=opt||{};
+  const {g,S,ST,gw,gh,cP,cS,cC,cM,cH,nTooth,nSpeck,seedX}=sc;
+  const A=vecLayer(offA,sc,0,ppm,rx0,ry0,rw,rh),B=vecLayer(offB,sc,1,ppm,rx0,ry0,rw,rh);
+  const out=new Uint8ClampedArray(rw*rh*4);
+  const base=hex(S.base),tint=hex(S.tint),blood=hex(S.blood),mold=hex(S.mold);
+  const dark=relLum(base)<.2;
+  const hl=mixc(base,[255,255,255],dark?.22:.45);
+  const charc=dark?[0,0,0]:mixc(tint,[0,0,0],.5);
+  const capIn=S.capIn,capOut=S.capOut,gr0=S.grain*.32;
+  // colunas
+  const xs=new Float32Array(rw),gi=new Int32Array(rw),gf=new Float32Array(rw),zdx=new Float32Array(rw),zr=new Uint8Array(rw);
+  for(let i=0;i<rw;i++){const x=(rx0+i+.5)/ppm-g.b;xs[i]=x;let f=(x+g.b)/ST,k=Math.floor(f);if(k<0)k=0;if(k>gw-2)k=gw-2;gi[i]=k;gf[i]=clamp(f-k,0,1);
+    const p=(g.dupla&&x>=g.pw)?1:0;zr[i]=p;const r=g.R[p];zdx[i]=Math.max(r.x-x,0,x-(r.x+r.w));}
+  const fe=Math.max(.1,S.feather);
+  const st=opt.stats;const sim=opt.sim;
+  for(let j=0;j<rh;j++){
+    const py=ry0+j,y=(py+.5)/ppm-g.b;let f=(y+g.b)/ST,gj=Math.floor(f);if(gj<0)gj=0;if(gj>gh-2)gj=gh-2;const fy=clamp(f-gj,0,1);
+    const R0=g.R[0],zdy=Math.max(R0.y-y,0,y-(R0.y+R0.h));const inY=y>=0&&y<=g.TH;
+    for(let i=0;i<rw;i++){
+      const o=(j*rw+i)*4,id=gj*gw+gi[i],fx=gf[i];
+      const w00=(1-fx)*(1-fy),w10=fx*(1-fy),w01=(1-fx)*fy,w11=fx*fy;
+      const bil=a=>a[id]*w00+a[id+1]*w10+a[id+gw]*w01+a[id+gw+1]*w11;
+      const P=bil(cP),Sv=bil(cS),C=bil(cC),M=bil(cM),Hc=bil(cH);
+      const x=xs[i];
+      const gr=gr0*(phash(rx0+i+seedX,py)*.55+nTooth(x*5.5,y*5.5)*.75);
+      const dP=(P>0?P:0)+A[o]/255*1.1+(gr>0?gr:0);
+      const lt=(P<0?-P:0)+A[o+2]/255*1.1+(gr<0?-gr:0);
+      const dS=Sv+A[o+1]/255*1.3;
+      const bl=B[o]/255*1.7,ch=C+B[o+1]/255*1.6;
+      let mo=0;if(M>.005){const sp=nSpeck(x*2.8,y*2.8)*.5+.5;mo=M*(.25+1.6*sst(.45,.8,sp+M*.25));}
+      const T=dP+dS+bl+ch+mo;
+      const dd=Math.hypot(zdx[i],zdy);const z=dd<=0?1:dd>=fe?0:1-sst(0,fe,dd);
+      let cap=capOut+(capIn-capOut)*z;if(C>1.2)cap+=(1-cap)*sst(1.2,2.4,C)*(1-z); // a queimadura pode ir até o carvão fora da mancha
+      const t=T>0?cap*Math.tanh(T):0,tl=cap*.45*Math.tanh(lt);
+      let alpha=255-B[o+2];if(Hc>.4)alpha*=1-sst(.4,.6,Hc);
+      const r0=base[0]+(hl[0]-base[0])*tl,g0=base[1]+(hl[1]-base[1])*tl,b0=base[2]+(hl[2]-base[2])*tl;
+      let R,G,Bc,Aout=alpha;
+      if(mode==='full'||mode==='transp'){
+        if(T>0){const iv=1/T,wt=(dP+dS)*iv,wb=bl*iv,wc=ch*iv,wm=mo*iv;
+          const mr=tint[0]*wt+blood[0]*wb+charc[0]*wc+mold[0]*wm,mg=tint[1]*wt+blood[1]*wb+charc[1]*wc+mold[1]*wm,mb=tint[2]*wt+blood[2]*wb+charc[2]*wc+mold[2]*wm;
+          R=r0+(mr-r0)*t;G=g0+(mg-g0)*t;Bc=b0+(mb-b0)*t;}else{R=r0;G=g0;Bc=b0;}
+        if(mode==='transp'){const Ac=1-(1-tl)*(1-t);if(Ac<=1e-4){Aout=0;}else{const k=1-Ac;R=(R-base[0]*k)/Ac;G=(G-base[1]*k)/Ac;Bc=(Bc-base[2]*k)/Ac;Aout=alpha*Ac;}}
+      }else if(mode==='papel'){const tP=T>0?t*dP/T:0;R=r0+(tint[0]-r0)*tP;G=g0+(tint[1]-g0)*tP;Bc=b0+(tint[2]-b0)*tP;}
+      else if(mode==='manchas'){R=tint[0];G=tint[1];Bc=tint[2];Aout=alpha*(T>0?t*dS/T:0);}
+      else{const sG=bl+ch+mo;if(sG>1e-5){R=(blood[0]*bl+charc[0]*ch+mold[0]*mo)/sG;G=(blood[1]*bl+charc[1]*ch+mold[1]*mo)/sG;Bc=(blood[2]*bl+charc[2]*ch+mold[2]*mo)/sG;Aout=alpha*t*sG/T;}else{R=G=Bc=0;Aout=0;}}
+      if(sim){R=SIM[R|0];G=SIM[G|0];Bc=SIM[Bc|0];}
+      out[o]=R;out[o+1]=G;out[o+2]=Bc;out[o+3]=Aout;
+      if(st&&inY&&x>=0&&x<=g.TW&&alpha>250){
+        const Y=.2126*LIN[out[o]]+.7152*LIN[out[o+1]]+.0722*LIN[out[o+2]];
+        if(z>=.999){if(Y<st.inMin)st.inMin=Y;if(Y>st.inMax)st.inMax=Y;}
+        else if(z<=.001){if(Y<st.outMin)st.outMin=Y;if(Y>st.outMax)st.outMax=Y;}}
+    }}
+  return out;
+}
+
+/* ---------- PNG com resolução gravada (pHYs) ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC[(c^u8[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+async function withDpi(blob,dpi){
+  const src=new Uint8Array(await blob.arrayBuffer());const ppmx=Math.round(dpi/.0254);
+  const ch=new Uint8Array(21);const dv=new DataView(ch.buffer);dv.setUint32(0,9);ch.set([112,72,89,115],4);dv.setUint32(8,ppmx);dv.setUint32(12,ppmx);ch[16]=1;
+  dv.setUint32(17,crc32(ch.subarray(4,17)));
+  const at=33;const out=new Uint8Array(src.length+21);out.set(src.subarray(0,at),0);out.set(ch,at);out.set(src.subarray(at),at+21);
+  return new Blob([out],{type:'image/png'});
+}
+
+/* ---------- estado / UI ---------- */
+const PALS={
+  verbum:{base:'#E9E2D0',tint:'#3A2E1C',blood:'#8E0E12',mold:'#4C5A3C',text:'#071A18'},
+  osso:{base:'#E6E1D3',tint:'#3F3A2E',blood:'#7A1010',mold:'#56614A',text:'#111111'},
+  pergaminho:{base:'#E8D9B5',tint:'#5A3B17',blood:'#7A0E0E',mold:'#4F5B35',text:'#1C140B'},
+  cimento:{base:'#D6D5CF',tint:'#2F2F2D',blood:'#6E0E10',mold:'#4A5548',text:'#0D0D0D'},
+  amarelo:{base:'#F1DC1E',tint:'#3B3000',blood:'#A8101A',mold:'#4B5A1E',text:'#0A0A0A'},
+  escuro:{base:'#0B1D1A',tint:'#A4D8A7',blood:'#B3161B',mold:'#7FA36A',text:'#D9E9DC'},
+  carvao:{base:'#171513',tint:'#CFC4AE',blood:'#9E1616',mold:'#6F7D5A',text:'#E8E1D2'}
+};
+const DEF={seed:'emunah',chaos:.25,deg:0,layout:'dupla',size:'210x297',pw:210,ph:297,bleed:3,
+  mTop:22,mBot:28,mIn:20,mOut:24,feather:8,capIn:.12,capOut:.32,protect:.8,
+  grain:.5,fibers:.5,stain:1,base:'#E9E2D0',tint:'#3A2E1C',blood:'#8E0E12',mold:'#4C5A3C',text:'#071A18',
+  font:'EB Garamond',fontCustom:'',fsize:10,lead:1.35,cols:1,showText:true,guides:true,sim:false,showFrame:true,
+  dpi:300,transp:false,split:false,entropia:''};
+const PRESETS={
+  velino:{chaos:0,deg:0,grain:.3,fibers:.25,stain:1,capOut:.25},
+  manuscrito:{chaos:.22,deg:0,grain:.5,fibers:.55,stain:1,capOut:.32},
+  arquivo:{chaos:.5,deg:0,grain:.55,fibers:.6,stain:1,capOut:.4},
+  ruina:{chaos:.85,deg:0,grain:.65,fibers:.7,stain:1.2,capOut:.55},
+  degenerado:{chaos:.45,deg:.8,grain:.6,fibers:.6,stain:1,capOut:.75}
+};
+const WORDS=['emunah','lacrimah','eden','spiritum','apogeu','silencio','zeit','inclemente','revelado','adjuracao','codice','kamia','vozes','reliquia','verbum','vazio','exorcismo','degenerado','sintonia','desapego'];
+const TEXTO=`<h3>I. Das vozes sob a pedra</h3>
+<p class="first">Ninguém sabe ao certo quando as vozes começaram. Os mais velhos dizem que vieram com a primeira chuva depois do eclipse; os mais novos juram que sempre estiveram ali, debaixo das lajes da cidade, esperando alguém disposto a escutar. O que se sabe é que, desde então, nenhuma porta fica trancada por muito tempo.</p>
+<p>Quem desce aos porões leva vela, sal e um nome que não seja o seu. A vela serve para enxergar, o sal para lembrar o caminho de volta, e o nome falso para que as vozes não aprendam a chamá-lo. Mesmo assim, muitos voltam diferentes: falam pouco, dormem de olhos abertos e respondem quando ninguém perguntou nada.</p>
+<p>Os escribas do templo registram cada desaparecimento num livro de capa negra. As páginas mais antigas já não podem ser lidas; a tinta escorreu, o papel inchou com a umidade e, em certas folhas, alguém raspou as palavras para escrever outras por cima. Há quem diga que não foi mão humana.</p>
+<p>Se o grupo decidir investigar, role 2d6 ao entrar em cada câmara. Em 2–5, as vozes sussurram um segredo verdadeiro e cobram um preço; em 6–9, nada acontece, o que é pior; em 10–12, uma delas se cala para sempre, e o silêncio que fica pesa mais do que qualquer grito.</p>
+<p>Ao final de cada noite, anote no livro o que foi ouvido. Palavras repetidas três vezes tornam-se verdade. Palavras esquecidas voltam, cedo ou tarde, pela boca de outra pessoa.</p>`;
+const TEXTO2=TEXTO.replace(/<h3>.*?<\/h3>/,'').replace(' class="first"','');
+
+let S=Object.assign({},DEF);
+try{const h=location.hash.slice(1);if(h){const o=JSON.parse(decodeURIComponent(escape(atob(h))));S=Object.assign({},DEF,o);}}catch(e){}
+
+const $=id=>document.getElementById(id);
+const bindings=[
+  ['capIn','pct'],['capOut','pct'],['protect','pct'],['sim','chk'],['showText','chk'],['guides','chk'],
+  ['seed','text'],['bleed','int'],['mTop','int'],['mBot','int'],['mIn','int'],['mOut','int'],['feather','int'],
+  ['grain','pct'],['fibers','pct'],['stain','pct'],['base','col'],['tint','col'],['blood','col'],['mold','col'],['text','col'],
+  ['font','sel'],['fontCustom','text'],['fsize','num'],['lead','pct'],['cols','int'],['showFrame','chk'],
+  ['dpi','int'],['transp','chk'],['split','chk']
+];
+const OVERLAY_ONLY=new Set(['showText','guides','font','fontCustom','fsize','lead','cols','showFrame','text','dpi','transp','split']);
+function toUI(){
+  $('chaos').value=Math.round(S.chaos*100);$('deg').value=Math.round(S.deg*100);
+  bindings.forEach(([k,t])=>{const el=$(k);if(!el)return;
+    if(t==='chk')el.checked=!!S[k];else if(t==='pct')el.value=Math.round(S[k]*100);else el.value=S[k];});
+  $('size').value=S.size;$('pw').value=S.pw;$('ph').value=S.ph;
+  [...$('layout').children].forEach(b=>b.classList.toggle('on',b.dataset.v===S.layout));
+  labels();
+}
+function labels(){
+  $('cval').textContent='entropia '+S.chaos.toFixed(2);$('dval').textContent='degeneração '+S.deg.toFixed(2);
+  $('capInV').textContent=Math.round(S.capIn*100)+'%';$('capOutV').textContent=Math.round(S.capOut*100)+'%';$('protectV').textContent=Math.round(S.protect*100)+'%';
+  ['mTop','mBot','mIn','mOut','feather'].forEach(k=>$(k+'V').textContent=S[k]);
+  $('grainV').textContent=Math.round(S.grain*100)+'%';$('fibersV').textContent=Math.round(S.fibers*100)+'%';$('stainV').textContent=Math.round(S.stain*100)+'%';
+  $('fsizeV').textContent=S.fsize;$('leadV').textContent=S.lead.toFixed(2);
+  $('customSize').style.display=S.size==='custom'?'flex':'none';
+  $('fontCustom').style.display=S.font==='custom'?'block':'none';
+}
+
+/* ---------- prévia ---------- */
+let sceneCache={key:'',sc:null};
+function sceneKey(ST){const k=['seed','chaos','deg','layout','pw','ph','bleed','mTop','mBot','mIn','mOut','feather','protect','fibers','stain'];return ST+'|'+k.map(x=>S[x]).join('|');}
+function getScene(ST){const k=sceneKey(ST);if(sceneCache.key!==k)sceneCache={key:k,sc:buildScene(S,ST)};return sceneCache.sc;}
+let cssK=1; // px de tela por mm
+function fit(){
+  const g=geometry(S);const v=$('view');const aw=v.clientWidth,ah=v.clientHeight;
+  cssK=Math.min(aw/g.W,ah/g.H);const w=$('wrap');w.style.width=Math.floor(g.W*cssK)+'px';w.style.height=Math.floor(g.H*cssK)+'px';
+  return g;
+}
+function draw(fast){
+  const g=fit();const dpr=Math.min(2,window.devicePixelRatio||1);
+  let ppm=Math.min(5,cssK*dpr);if(fast)ppm*=.5;
+  const sc=getScene(fast?1:.5);
+  const Wp=Math.max(1,Math.round(g.W*ppm)),Hp=Math.max(1,Math.round(g.H*ppm));
+  const stats={inMin:1,inMax:0,outMin:1,outMax:0};
+  const data=renderRegion(sc,ppm,0,0,Wp,Hp,'full',{stats,sim:S.sim});
+  const cv=$('cv');if(cv.width!==Wp||cv.height!==Hp){cv.width=Wp;cv.height=Hp;}
+  cv.getContext('2d').putImageData(new ImageData(data,Wp,Hp),0,0);
+  meter(stats);overlay();
+}
+function meter(st){
+  const tY=relLum(hex(S.text));
+  const ratio=(a,b)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+  if(st.inMax<st.inMin){$('meter').innerHTML='Sem área de mancha de texto visível.';return;}
+  const worst=Math.min(ratio(tY,st.inMin),ratio(tY,st.inMax));
+  const dIn=Lstar(st.inMax)-Lstar(st.inMin),dOut=st.outMax>=st.outMin?Lstar(st.outMax)-Lstar(st.outMin):0;
+  const cl=worst>=7?'ok':worst>=4.5?'warn':'bad',nv=worst>=7?'AAA':worst>=4.5?'AA':'abaixo de AA';
+  const cd=dIn<=10?'ok':dIn<=16?'warn':'bad';
+  $('meter').innerHTML=`Variação na mancha de texto: <b class="${cd}">ΔL* ${dIn.toFixed(1)}</b><br>`+
+    `Pior contraste do texto: <b class="${cl}">${worst.toFixed(1)}:1</b> <span class="${cl}">(${nv})</span><br>`+
+    `Variação nas margens: <b>ΔL* ${dOut.toFixed(1)}</b>`;
+}
+function overlay(){
+  const g=geometry(S),k=cssK;
+  // texto
+  const ot=$('ovText');ot.innerHTML='';
+  if(S.showText){const fam=S.font==='custom'?(S.fontCustom||'serif'):S.font;
+    g.R.forEach((r,i)=>{const d=document.createElement('div');d.className='tb';d.lang='pt-BR';
+      Object.assign(d.style,{left:(r.x+g.b)*k+'px',top:(r.y+g.b)*k+'px',width:r.w*k+'px',height:r.h*k+'px',
+        fontFamily:`"${fam}",serif`,fontSize:(S.fsize*.3528*k)+'px',lineHeight:S.lead,color:S.text,columnCount:S.cols,columnGap:(5*k)+'px'});
+      d.innerHTML=(i===0?TEXTO:TEXTO2)+TEXTO2+TEXTO2;ot.appendChild(d);});}
+  // guias
+  const og=$('ovGuides');og.innerHTML='';
+  if(S.guides){g.R.forEach(r=>{const d=document.createElement('div');d.className='gd';Object.assign(d.style,{left:(r.x+g.b)*k+'px',top:(r.y+g.b)*k+'px',width:r.w*k+'px',height:r.h*k+'px'});og.appendChild(d);});
+    if(g.b>0||g.dupla){const d=document.createElement('div');d.className='gd trim';Object.assign(d.style,{left:g.b*k+'px',top:g.b*k+'px',width:g.TW*k+'px',height:g.TH*k+'px'});og.appendChild(d);
+      if(g.dupla){const l=document.createElement('div');l.className='gd trim';Object.assign(l.style,{left:(g.b+g.pw)*k+'px',top:g.b*k+'px',width:'0',height:g.TH*k+'px',borderWidth:'0 0 0 1px'});og.appendChild(l);}}}
+  // moldura
+  const fi=$('frameImg');
+  if(frameSVG&&S.showFrame){fi.style.display='block';Object.assign(fi.style,{left:g.b*k+'px',top:g.b*k+'px',width:g.TW*k+'px',height:g.TH*k+'px'});}
+  else fi.style.display='none';
+}
+let raf=0,timer=0;
+function saveHash(){try{history.replaceState(null,'','#'+btoa(unescape(encodeURIComponent(JSON.stringify(S)))));}catch(e){}}
+function render(){labels();saveHash();cancelAnimationFrame(raf);clearTimeout(timer);
+  raf=requestAnimationFrame(()=>{draw(true);timer=setTimeout(()=>draw(false),200);});}
+function soft(){labels();saveHash();overlay();}
+
+$('chaos').addEventListener('input',e=>{S.chaos=e.target.value/100;render();});
+$('deg').addEventListener('input',e=>{S.deg=e.target.value/100;render();});
+bindings.forEach(([k,t])=>{const el=$(k);if(!el)return;
+  el.addEventListener(t==='chk'||t==='sel'?'change':'input',()=>{
+    if(t==='chk')S[k]=el.checked;else if(t==='pct')S[k]=el.value/100;else if(t==='int')S[k]=parseInt(el.value,10)||0;
+    else if(t==='num')S[k]=parseFloat(el.value)||0;else S[k]=el.value;
+    if(OVERLAY_ONLY.has(k)){if(k==='text')render();else soft();}else render();});
+});
+$('size').addEventListener('change',e=>{S.size=e.target.value;if(S.size!=='custom'){const[a,b]=S.size.split('x').map(Number);S.pw=a;S.ph=b;$('pw').value=a;$('ph').value=b;}render();});
+['pw','ph'].forEach(k=>$(k).addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>=50&&v<=600){S[k]=v;render();}}));
+[...$('layout').children].forEach(b=>b.addEventListener('click',()=>{S.layout=b.dataset.v;toUI();render();}));
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{Object.assign(S,PRESETS[b.dataset.preset]);toUI();render();}));
+document.querySelectorAll('[data-pal]').forEach(b=>b.addEventListener('click',()=>{Object.assign(S,PALS[b.dataset.pal]);toUI();render();}));
+$('dice').addEventListener('click',()=>{S.seed=WORDS[Math.floor(Math.random()*WORDS.length)]+'-'+Math.floor(Math.random()*999);toUI();render();});
+window.addEventListener('resize',()=>render());
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>overlay());
+
+/* ---------- moldura da Entropia ---------- */
+let frameSVG='';
+function setFrame(svg){frameSVG=svg;$('frameImg').src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);overlay();}
+function frameFromLink(url,quiet){
+  let st;try{const h=new URL(url).hash.slice(1);st=JSON.parse(decodeURIComponent(escape(atob(h))));}catch(e){if(!quiet)toast('Esse link não parece ser da Entropia');return;}
+  const fr=document.createElement('iframe');fr.style.cssText='position:absolute;width:800px;height:600px;left:-9999px;top:0;visibility:hidden';
+  fr.onload=()=>{try{const w=fr.contentWindow;const G=w.generate(st);setFrame(w.toSVG(G,st,{noBg:true}));if(!quiet)toast('Moldura carregada');}
+    catch(e){if(!quiet)toast('Não consegui ler a moldura direto — exporte o SVG na Entropia e use o campo abaixo');}
+    setTimeout(()=>fr.remove(),200);};
+  fr.src=url.split('#')[0];document.body.appendChild(fr);
+  return st;
+}
+$('entGo').addEventListener('click',()=>{const url=$('entLink').value.trim();if(!url)return;
+  const st=frameFromLink(url,false);if(!st)return;
+  ['layout','size','pw','ph'].forEach(k=>{if(st[k]!==undefined)S[k]=st[k];});S.entropia=url;toUI();render();});
+$('entFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{let t=String(rd.result).replace(/<\/defs>\s*<rect [^>]*\/>/,'</defs>');setFrame(t);toast('Moldura carregada');};rd.readAsText(f);});
+if(S.entropia){$('entLink').value=S.entropia;frameFromLink(S.entropia,true);}
+
+/* ---------- exportar ---------- */
+function toast(t,keep){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);if(!keep)toast.t=setTimeout(()=>el.style.opacity=0,2200);}
+function fname(extra){return `papel-${S.seed.replace(/[^a-z0-9-]+/gi,'_')}-e${Math.round(S.chaos*100)}${S.deg>0?'-d'+Math.round(S.deg*100):''}-${S.layout}${extra?'-'+extra:''}-${S.dpi}dpi.png`;}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+let busy=false;
+async function exportPNG(layers){
+  if(busy)return;busy=true;
+  try{
+    const sc=buildScene(S,.5),g=sc.g,ppm=S.dpi/25.4;
+    const Wpx=Math.round(g.W*ppm),Hpx=Math.round(g.H*ppm);
+    const regions=(S.split&&g.dupla)?[{n:'esq',x0:0,x1:Math.round((g.b+g.pw)*ppm)},{n:'dir',x0:Math.round((g.b+g.pw)*ppm),x1:Wpx}]:[{n:'',x0:0,x1:Wpx}];
+    const modes=layers?[['papel','1-papel'],['manchas','2-manchas']].concat(S.deg>0?[['degen','3-degenerado']]:[]):[[S.transp?'transp':'full','']];
+    const total=regions.length*modes.length;let done=0;
+    for(const rg of regions)for(const [mode,tag] of modes){
+      const rw=rg.x1-rg.x0;const cv=document.createElement('canvas');cv.width=rw;cv.height=Hpx;const ctx=cv.getContext('2d');
+      const SH=256;
+      for(let y=0;y<Hpx;y+=SH){const h=Math.min(SH,Hpx-y);
+        const d=renderRegion(sc,ppm,rg.x0,y,rw,h,mode,{});ctx.putImageData(new ImageData(d,rw,h),0,y);
+        toast(`Gerando ${done+1}/${total}… ${Math.round((y+h)/Hpx*100)}%`,true);await tick();}
+      const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+      if(!blob)throw new Error('canvas');
+      download(await withDpi(blob,S.dpi),fname([rg.n,tag].filter(Boolean).join('-')));done++;await tick();
+    }
+    toast(total>1?`${total} PNGs exportados`:'PNG exportado');
+  }catch(e){console.error(e);toast('Não consegui gerar o PNG — tente 150 dpi ou páginas separadas');}
+  busy=false;
+}
+$('expPng').addEventListener('click',()=>exportPNG(false));
+$('expLayers').addEventListener('click',()=>exportPNG(true));
+$('share').addEventListener('click',()=>{const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('Link copiado'),()=>toast('Não consegui copiar — use a barra de endereço'));});
+
+toUI();render();
+</script>
+</body>
+</html>
